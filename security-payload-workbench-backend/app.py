@@ -3,10 +3,11 @@ from flask_cors import CORS
 import base64
 import urllib.parse
 import hashlib
+import os
 
 app = Flask(__name__)
 # Allow CORS for the specified origins
-CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
+CORS(app, resources={r"/*": {"origins": os.getenv('FRONTEND_ORIGIN', '*')}})
 
 
 def encode_base64(text: str) -> str:
@@ -72,6 +73,8 @@ def hash_text(text: str, algorithm: str):
 
 @app.route('/api/process', methods=['POST'])
 def process():
+    if request.content_length is not None and request.content_length > 10 * 1024:
+        return jsonify({"success": False, "result": "", "error": "Payload too large (max 10KB)"}), 413
     data = request.get_json(silent=True) or {}
     input_text = data.get('input_text')
     operation = data.get('operation')
@@ -119,4 +122,5 @@ def health():
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
-    app.run(debug=False, port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host='0.0.0.0', port=port)
