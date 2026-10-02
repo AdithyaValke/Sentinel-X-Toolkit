@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: payload-workbench-api
+    runtime: python
+    rootDir: security-payload-workbench-backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /health
+    envVars:
+      - key: FRONTEND_ORIGIN
+        sync: false

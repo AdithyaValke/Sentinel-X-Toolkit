@@ -23,65 +23,87 @@ export default function Page() {
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [operation, setOperation] = useState<Operation>('base64-encode')
   const [selectedHash, setSelectedHash] = useState<HashAlgorithm>('SHA-256')
   const [copied, setCopied] = useState(false)
   const [darkMode, setDarkMode] = useState(true)
 
   useEffect(() => {
-    let active = true
-    async function run() {
-      if (!input) {
-        if (active) {
-          setOutput('')
-          setError('')
+    let active = true;
+    setOutput('');
+    setError('');
+    setLoading(Boolean(input));
+    const handler = setTimeout(() => {
+      async function run() {
+        if (!input) {
+          if (active) {
+            setOutput('');
+            setError('');
+            setLoading(false);
+          }
+          return;
         }
-        return
-      }
-
-      const opMap: Record<Operation, string> = {
-        'base64-encode': 'base64_encode',
-        'base64-decode': 'base64_decode',
-        'url-encode': 'url_encode',
-        'url-decode': 'url_decode',
-        'hex-encode': 'hex_encode',
-        'hex-decode': 'hex_decode',
-        hash: 'hash',
-      }
-
-      const op = opMap[operation]
-      const hashAlgo = operation === 'hash' ? selectedHash : null
-
-      try {
-        const response = await callBackend(op, input, hashAlgo);
-        if (response.success) {
-          if (active) setOutput(response.result);
-        } else {
-          if (active) setError(response.error ?? '');
+        const opMap: Record<Operation, string> = {
+          'base64-encode': 'base64_encode',
+          'base64-decode': 'base64_decode',
+          'url-encode': 'url_encode',
+          'url-decode': 'url_decode',
+          'hex-encode': 'hex_encode',
+          'hex-decode': 'hex_decode',
+          hash: 'hash',
+        };
+        const op = opMap[operation];
+        const hashAlgo = operation === 'hash' ? selectedHash : null;
+        try {
+          const response = await callBackend(op, input, hashAlgo);
+          if (response.success) {
+            if (active) setOutput(response.result);
+          } else {
+            if (active) {
+              setOutput('');
+              setError(response.error ?? 'The operation failed.');
+            }
+          }
+        } catch (e) {
+          if (active) {
+            setOutput('');
+            setError(e instanceof Error ? e.message : 'The operation failed.');
+          }
+        } finally {
+          if (active) setLoading(false);
         }
-      } catch (e) {
-        if (active) setError(String(e));
       }
-    }
-    run()
+      run();
+    }, 300);
     return () => {
-      active = false
-    }
+      active = false;
+      clearTimeout(handler);
+    };
   }, [input, operation, selectedHash])
-  async function copyResult() { if (!output) return; await navigator.clipboard.writeText(output); setCopied(true); window.setTimeout(() => setCopied(false), 1600) }
+  async function copyResult() {
+    if (!output) return;
+    try {
+      await navigator.clipboard.writeText(output);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setError('Clipboard access failed. Select and copy the output manually.');
+    }
+  }
   function clearAll() { setInput(''); setOutput(''); setError(''); setCopied(false) }
 
   return (
     <main className={darkMode ? 'dark' : 'light'}>
       <div className="workbench-shell">
         <header className="workbench-header">
-          <div><div className="eyebrow"><ShieldCheck /> Security tooling</div><h1>Security <span>Workbench</span></h1><p>A focused workspace for encoding, decoding, hashing, and inspecting text locally.</p></div>
-          <div className="header-tools"><div className="processing-pill"><span /> Local processing</div><button type="button" className="theme-toggle" onClick={() => setDarkMode((value) => !value)} aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}>{darkMode ? <Sun /> : <Moon />}<span>{darkMode ? 'Light' : 'Dark'}</span></button></div>
+          <div><div className="eyebrow"><ShieldCheck /> Security tooling</div><h1>Security <span>Workbench</span></h1><p>A focused workspace for encoding, decoding, hashing, and inspecting text through the Flask API.</p></div>
+          <div className="header-tools"><div className="processing-pill"><span /> Flask API processing</div><button type="button" className="theme-toggle" onClick={() => setDarkMode((value) => !value)} aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}>{darkMode ? <Sun /> : <Moon />}<span>{darkMode ? 'Light' : 'Dark'}</span></button></div>
         </header>
         <section className="workspace" aria-label="Security operations workspace">
           <BufferCard title="Input Buffer" icon="01"><textarea id="input-buffer" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Paste text or encoded data here..." className="buffer-textarea" spellCheck={false} aria-label="Input buffer" /><BufferMeta count={input.length} /></BufferCard>
           <div className="operations" aria-label="Operations"><div className="section-label">Operations</div><div className="operation-grid">{operations.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setOperation(id)} className={`operation-button ${operation === id ? 'operation-button-active' : ''}`}><Icon /><span>{label}</span></button>)}</div><label className="section-label hash-label" htmlFor="hash-algorithm">Hash algorithm</label><div className="hash-tile"><Hash /><select id="hash-algorithm" value={selectedHash} onChange={(event) => { setSelectedHash(event.target.value as HashAlgorithm); setOperation('hash') }} className="hash-select"><option>MD5</option><option>SHA-256</option><option>SHA-512</option></select></div></div>
-          <BufferCard title="Output Buffer" icon="02"><textarea id="output-buffer" value={output} readOnly placeholder="Your result will appear here..." className={`buffer-textarea output-textarea ${error ? 'buffer-error' : ''}`} spellCheck={false} aria-label="Output buffer" aria-describedby={error ? 'decode-error' : undefined} /><div className="buffer-meta"><span id="decode-error" role="alert" className={error ? 'error-text' : ''}>{error || `${output.length} characters`}</span><span>UTF-8</span></div></BufferCard>
+          <BufferCard title="Output Buffer" icon="02" status={loading ? 'Processing' : error ? 'Error' : output ? 'Ready' : 'Waiting'}><textarea id="output-buffer" value={output} readOnly placeholder="Your result will appear here..." className={`buffer-textarea output-textarea ${error ? 'buffer-error' : ''}`} spellCheck={false} aria-label="Output buffer" aria-describedby={error ? 'decode-error' : undefined} /><div className="buffer-meta"><span id="decode-error" role="alert" className={error ? 'error-text' : ''}>{error || `${output.length} characters`}</span><span>UTF-8</span></div></BufferCard>
         </section>
         <footer className="workbench-footer"><span>Developed with modern web security best practices</span><div><button type="button" onClick={clearAll} className="footer-action"><Eraser /> Clear</button><button type="button" onClick={copyResult} className="footer-action" disabled={!output}>{copied ? <Check /> : <Clipboard />} {copied ? 'Copied' : 'Copy result'}</button><a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noreferrer">OWASP resources ↗</a></div></footer>
       </div>
@@ -89,5 +111,5 @@ export default function Page() {
   )
 }
 
-function BufferCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) { return <article className="buffer-card"><div className="buffer-heading"><h2><span>{icon}</span>{title}</h2><small>Live</small></div>{children}</article> }
+function BufferCard({ title, icon, status = 'Live', children }: { title: string; icon: string; status?: string; children: React.ReactNode }) { return <article className="buffer-card"><div className="buffer-heading"><h2><span>{icon}</span>{title}</h2><small>{status}</small></div>{children}</article> }
 function BufferMeta({ count }: { count: number }) { return <div className="buffer-meta"><span>{count} characters</span><span>UTF-8</span></div> }

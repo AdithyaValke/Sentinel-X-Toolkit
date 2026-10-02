@@ -6,8 +6,18 @@ import hashlib
 import os
 
 app = Flask(__name__)
-# Allow CORS for the specified origins
-CORS(app, resources={r"/*": {"origins": os.getenv('FRONTEND_ORIGIN', '*')}})
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024
+# Configure CORS based on environment variable FRONTEND_ORIGIN.
+# In development, allow localhost:3000; in production, require explicit origins.
+frontend_origin = os.getenv('FRONTEND_ORIGIN')
+if os.getenv('RENDER') and not frontend_origin:
+    raise RuntimeError("FRONTEND_ORIGIN must be configured in production")
+if frontend_origin:
+    origins = [o.strip() for o in frontend_origin.split(',') if o.strip()]
+else:
+    # Default development origin
+    origins = ['http://localhost:3000']
+CORS(app, resources={r"/*": {"origins": origins}})
 
 
 def encode_base64(text: str) -> str:
@@ -54,10 +64,10 @@ def decode_hex(hex_str: str):
 
 def hash_text(text: str, algorithm: str):
     """Hash the input text using the specified algorithm.
-    Supported algorithms: md5, sha256, sha512.
-    Returns a tuple (success, result, error).
-    """
-    algo = algorithm.lower()
+    Supported algorithms: md5, sha256, sha512 (case‑insensitive, hyphens/spaces ignored).
+    Returns a tuple (success, result, error)."""
+    import re
+    algo = re.sub(r"[\s-]", "", algorithm).lower()
     try:
         if algo == "md5":
             digest = hashlib.md5(text.encode("utf-8")).hexdigest()
@@ -68,31 +78,35 @@ def hash_text(text: str, algorithm: str):
         else:
             return False, "", f"Unsupported hash algorithm: {algorithm}"
         return True, digest, None
-    except Exception as e:
-        return False, "", str(e)
+    except (TypeError, ValueError):
+        return False, "", "Unable to hash input with the requested algorithm"
 
 @app.route('/api/process', methods=['POST'])
 def process():
-    if request.content_length is not None and request.content_length > 10 * 1024:
-        return jsonify({"success": False, "result": "", "error": "Payload too large (max 10KB)"}), 413
-    data = request.get_json(silent=True) or {}
+    if not request.is_json:
+        return jsonify({"success": False, "result": "", "error": "Content-Type must be application/json"}), 415
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "result": "", "error": "Malformed JSON payload"}), 400
     input_text = data.get('input_text')
     operation = data.get('operation')
     hash_algorithm = data.get('hash_algorithm')
-
+    # Validate required fields
     if not isinstance(input_text, str) or not isinstance(operation, str):
-        return jsonify({
-            "success": False,
-            "result": "",
-            "error": "'input_text' and 'operation' must be provided as strings"
-        })
-
+        return jsonify({"success": False, "result": "", "error": "'input_text' and 'operation' must be provided as strings"}), 400
+    # Validate supported operations early
+    supported_ops = {'base64_encode', 'base64_decode', 'url_encode', 'url_decode', 'hex_encode', 'hex_decode', 'hash'}
+    if operation not in supported_ops:
+        return jsonify({"success": False, "result": "", "error": f"Unsupported operation: {operation}"}), 400
+    # For hashing, ensure hash_algorithm is present and normalized later in hash_text
+    if operation == 'hash' and not isinstance(hash_algorithm, str):
+        return jsonify({"success": False, "result": "", "error": "'hash_algorithm' must be provided for hashing operations"}), 400
     if operation == 'base64_encode':
         result = encode_base64(input_text)
         return jsonify({"success": True, "result": result, "error": None})
     elif operation == 'base64_decode':
         success, result, err = decode_base64(input_text)
-        return jsonify({"success": success, "result": result, "error": err})
+        return jsonify({"success": success, "result": result, "error": err}), (200 if success else 400)
     elif operation == 'url_encode':
         result = encode_url(input_text)
         return jsonify({"success": True, "result": result, "error": None})
@@ -104,12 +118,10 @@ def process():
         return jsonify({"success": True, "result": result, "error": None})
     elif operation == 'hex_decode':
         success, result, err = decode_hex(input_text)
-        return jsonify({"success": success, "result": result, "error": err})
+        return jsonify({"success": success, "result": result, "error": err}), (200 if success else 400)
     elif operation == 'hash':
-        if not isinstance(hash_algorithm, str):
-            return jsonify({"success": False, "result": "", "error": "'hash_algorithm' must be provided for hashing operations"})
         success, result, err = hash_text(input_text, hash_algorithm)
-        return jsonify({"success": success, "result": result, "error": err})
+        return jsonify({"success": success, "result": result, "error": err}), (200 if success else 400)
     else:
         return jsonify({
             "success": False,
@@ -120,6 +132,27 @@ def process():
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.errorhandler(413)
+def request_too_large(_error):
+    return jsonify({"success": False, "result": "", "error": "Payload too large (max 10KB)"}), 413
+
+
+@app.errorhandler(404)
+def not_found(_error):
+    return jsonify({"success": False, "result": "", "error": "Not found"}), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(_error):
+    return jsonify({"success": False, "result": "", "error": "Method not allowed"}), 405
+
+
+@app.errorhandler(Exception)
+def unexpected_error(_error):
+    app.logger.exception("Unhandled request error")
+    return jsonify({"success": False, "result": "", "error": "Internal server error"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
