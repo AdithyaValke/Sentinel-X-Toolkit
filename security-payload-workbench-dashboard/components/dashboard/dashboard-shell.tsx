@@ -24,7 +24,7 @@ import {
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', active: true },
   { label: 'Payload Tools', icon: TerminalSquare, href: '/?operation=base64-encode' },
-  { label: 'Hash Tools', icon: Hash, href: '/?operation=hash' },
+  { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
   { label: 'Security Lab', icon: FlaskConical, href: '/' },
   { label: 'Recent Activity', icon: Activity, href: '/' },
 ]
@@ -35,7 +35,7 @@ const tools = [
     description: 'Generate secure hashes from raw text with the algorithm of your choice.',
     icon: Hash,
     accent: 'text-cyan-300 bg-cyan-400/10 ring-cyan-300/20',
-    href: '/?operation=hash',
+    href: '/hash-tools',
     tag: 'Converter',
   },
   {
