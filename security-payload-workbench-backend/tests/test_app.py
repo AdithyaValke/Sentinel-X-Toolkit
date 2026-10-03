@@ -316,3 +316,39 @@ def test_dedicated_identify_hash_endpoint(client):
     # rejects missing / invalid
     res_invalid = client.post("/api/identify-hash", json={"hash": ""})
     assert res_invalid.status_code == 400
+
+
+def test_hash_converter_and_identify_hash_coexist_independently(client):
+    """Regression Test: Verify Hash Converter ('hash' operation) and Identify Hash Function
+
+    ('identify_hash' operation) work independently without intercepting or conflicting.
+    """
+    raw_text = "secure_test_payload"
+
+    # 1. Generate hash via Hash Converter (operation: 'hash')
+    conv_response = post_process(client, "hash", raw_text, "SHA-256")
+    assert conv_response.status_code == 200
+    conv_data = conv_response.get_json()
+    assert conv_data["success"] is True
+    generated_hash = conv_data["result"]
+    assert len(generated_hash) == 64
+    assert generated_hash == hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+
+    # 2. Identify candidate algorithms via Identify Hash Function (operation: 'identify_hash')
+    id_response = post_process(client, "identify_hash", generated_hash)
+    assert id_response.status_code == 200
+    id_data = id_response.get_json()
+    assert id_data["success"] is True
+    assert id_data["input_length"] == 64
+    assert id_data["character_format"] == "hexadecimal"
+    assert any(c["algorithm"] == "SHA-256" for c in id_data["candidates"])
+
+    # 3. Verify Hash Converter MD5 and SHA-512 remain fully functional
+    md5_resp = post_process(client, "hash", raw_text, "MD5")
+    assert md5_resp.status_code == 200
+    assert md5_resp.get_json()["result"] == hashlib.md5(raw_text.encode("utf-8")).hexdigest()
+
+    sha512_resp = post_process(client, "hash", raw_text, "SHA-512")
+    assert sha512_resp.status_code == 200
+    assert sha512_resp.get_json()["result"] == hashlib.sha512(raw_text.encode("utf-8")).hexdigest()
+
