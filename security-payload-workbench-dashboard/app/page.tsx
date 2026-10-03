@@ -151,6 +151,13 @@ export default function Page() {
     setOperation('identify-hash')
   }
 
+  useEffect(() => {
+    const requestedOperation = new URLSearchParams(window.location.search).get('operation')
+    if (requestedOperation && operations.some(({ id }) => id === requestedOperation)) {
+      setOperation(requestedOperation as Operation)
+    }
+  }, [])
+
   return (
     <main className={darkMode ? 'dark' : 'light'}>
       <div className="workbench-shell">

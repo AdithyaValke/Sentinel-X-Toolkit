@@ -22,11 +22,11 @@ import {
 } from 'lucide-react'
 
 const navigation = [
-  { label: 'Dashboard', icon: LayoutDashboard, active: true },
-  { label: 'Payload Tools', icon: TerminalSquare },
-  { label: 'Hash Tools', icon: Hash },
-  { label: 'Security Lab', icon: FlaskConical },
-  { label: 'Recent Activity', icon: Activity },
+  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', active: true },
+  { label: 'Payload Tools', icon: TerminalSquare, href: '/?operation=base64-encode' },
+  { label: 'Hash Tools', icon: Hash, href: '/?operation=hash' },
+  { label: 'Security Lab', icon: FlaskConical, href: '/' },
+  { label: 'Recent Activity', icon: Activity, href: '/' },
 ]
 
 const tools = [
@@ -35,7 +35,7 @@ const tools = [
     description: 'Generate secure hashes from raw text with the algorithm of your choice.',
     icon: Hash,
     accent: 'text-cyan-300 bg-cyan-400/10 ring-cyan-300/20',
-    href: '/',
+    href: '/?operation=hash',
     tag: 'Converter',
   },
   {
@@ -43,7 +43,7 @@ const tools = [
     description: 'Inspect a hash string and review likely algorithms with supporting evidence.',
     icon: Fingerprint,
     accent: 'text-violet-300 bg-violet-400/10 ring-violet-300/20',
-    href: '/',
+    href: '/?operation=identify-hash',
     tag: 'Analyzer',
   },
   {
@@ -51,7 +51,7 @@ const tools = [
     description: 'Encode, decode, and inspect data formats from one focused workbench.',
     icon: TerminalSquare,
     accent: 'text-amber-300 bg-amber-400/10 ring-amber-300/20',
-    href: '/',
+    href: '/?operation=base64-encode',
     tag: 'Workbench',
   },
   {
@@ -103,8 +103,8 @@ export function DashboardShell() {
           {collapsed && <button className="mx-auto mt-6 hidden rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 lg:block" onClick={() => setCollapsed(false)} aria-label="Expand sidebar"><PanelLeftOpen className="size-4" /></button>}
           <nav className="mt-10 flex flex-1 flex-col gap-1" aria-label="Main navigation">
             {!collapsed && <p className="mb-3 px-3 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-600">Workspace</p>}
-            {navigation.map(({ label, icon: Icon, active }) => (
-              <Link key={label} href={active ? '/dashboard' : '/'} onClick={() => setMobileOpen(false)} title={collapsed ? label : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${active ? 'bg-cyan-400/[0.11] text-cyan-200 shadow-[inset_2px_0_0_#22d3ee]' : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-200'} ${collapsed ? 'justify-center' : ''}`}>
+            {navigation.map(({ label, icon: Icon, href, active }) => (
+              <Link key={label} href={href} onClick={() => setMobileOpen(false)} title={collapsed ? label : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${active ? 'bg-cyan-400/[0.11] text-cyan-200 shadow-[inset_2px_0_0_#22d3ee]' : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-200'} ${collapsed ? 'justify-center' : ''}`}>
                 <Icon className={`size-[18px] shrink-0 ${active ? 'text-cyan-300' : 'text-slate-600 group-hover:text-slate-300'}`} />
                 {!collapsed && <span>{label}</span>}
               </Link>
