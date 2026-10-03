@@ -5,11 +5,105 @@ import urllib.parse
 import hashlib
 import os
 import re
+import ipaddress
+
+from flask_limiter import Limiter
+from flask_limiter.errors import RateLimitExceeded
 
 from hash_identifier import analyze_hashes
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024
+
+
+def _rate_limit_configuration(environment):
+    is_render = bool(environment.get("RENDER"))
+    storage_uri = environment.get("RATE_LIMIT_STORAGE_URI")
+    if is_render and not storage_uri:
+        raise RuntimeError("RATE_LIMIT_STORAGE_URI must be configured in production")
+    if is_render and urllib.parse.urlsplit(storage_uri).scheme not in {"redis", "rediss", "redis+cluster"}:
+        raise RuntimeError("RATE_LIMIT_STORAGE_URI must use a shared Redis-compatible scheme in production")
+    limit = _positive_int_setting_from(environment, "API_RATE_LIMIT_PER_MINUTE", "60")
+    return is_render, storage_uri, limit
+
+
+def _positive_int_setting_from(environment, name: str, default: str) -> int:
+    value = environment.get(name, default)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"{name} must be a positive integer") from error
+    if parsed < 1:
+        raise RuntimeError(f"{name} must be a positive integer")
+    return parsed
+
+
+_is_render, _rate_limit_storage, _rate_limit = _rate_limit_configuration(os.environ)
+app.config["API_RATE_LIMIT_PER_MINUTE"] = _rate_limit
+
+
+class ClientIpUnavailable(Exception):
+    """Raised when the trusted deployment proxy does not provide a usable client IP."""
+
+
+def verified_client_ip() -> str:
+    if app.config.get("TRUST_RENDER_CLOUDFLARE_IP", _is_render):
+        candidate = request.headers.get("CF-Connecting-IP", "")
+        if not candidate or "," in candidate:
+            raise ClientIpUnavailable
+        try:
+            return str(ipaddress.ip_address(candidate.strip()))
+        except ValueError as error:
+            raise ClientIpUnavailable from error
+    # Local/test requests use the socket peer. Forwarded headers are never trusted here.
+    return request.remote_addr or "unknown"
+
+
+def _rate_limit_response(_request_limit):
+    response = jsonify({"success": False, "result": "", "error": "Rate limit exceeded. Try again later."})
+    response.status_code = 429
+    return response
+
+
+limiter = Limiter(
+    key_func=verified_client_ip,
+    app=app,
+    storage_uri=_rate_limit_storage or "memory://",
+    strategy="fixed-window",
+    headers_enabled=True,
+    swallow_errors=False,
+    on_breach=_rate_limit_response,
+)
+
+
+def public_api_rate_limit():
+    return limiter.shared_limit(
+        lambda: f"{app.config['API_RATE_LIMIT_PER_MINUTE']} per minute",
+        scope="public-api",
+        methods=["POST"],
+    )
+
+
+def _is_trusted_origin(origin: str) -> bool:
+    if origin == '*':
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(origin)
+        parsed.port  # Accessing port validates its syntax and range.
+        return (
+            parsed.scheme in {'http', 'https'}
+            and bool(parsed.hostname)
+            and '*' not in parsed.netloc
+            and parsed.path in {'', '/'}
+            and not parsed.username
+            and not parsed.password
+            and not parsed.query
+            and not parsed.fragment
+        )
+    except ValueError:
+        return False
+
+
 # Configure CORS based on environment variable FRONTEND_ORIGIN.
 # In development, allow localhost:3000; in production, require explicit origins.
 frontend_origin = os.getenv('FRONTEND_ORIGIN')
@@ -20,6 +114,8 @@ if frontend_origin:
 else:
     # Default development origin
     origins = ['http://localhost:3000']
+if not origins or any(not _is_trusted_origin(origin) for origin in origins):
+    raise RuntimeError("FRONTEND_ORIGIN must contain explicit HTTP(S) origins without paths or wildcards")
 CORS(app, resources={r"/*": {"origins": origins}})
 
 
@@ -85,6 +181,7 @@ def hash_text(text: str, algorithm: str):
 
 
 @app.route('/api/process', methods=['POST'])
+@public_api_rate_limit()
 def process():
     if not request.is_json:
         return jsonify({"success": False, "result": "", "error": "Content-Type must be application/json"}), 415
@@ -171,6 +268,7 @@ def process():
 
 
 @app.route('/api/identify-hash', methods=['POST'])
+@public_api_rate_limit()
 def identify_hash_endpoint():
     """Dedicated endpoint for hash identification and candidate analysis."""
     if not request.is_json:
@@ -203,6 +301,33 @@ def request_too_large(_error):
     return jsonify({"success": False, "result": "", "error": "Payload too large (max 10KB)"}), 413
 
 
+@app.errorhandler(ClientIpUnavailable)
+def client_ip_unavailable(_error):
+    return jsonify({"success": False, "result": "", "error": "Unable to verify client IP"}), 503
+
+
+@app.errorhandler(RateLimitExceeded)
+def rate_limit_exceeded(error):
+    # Preserve Flask-Limiter headers while guaranteeing the public JSON error shape.
+    response = error.get_response() or _rate_limit_response(None)
+    response.set_data(app.json.dumps({"success": False, "result": "", "error": "Rate limit exceeded. Try again later."}))
+    response.content_type = "application/json"
+    response.status_code = 429
+    return response
+
+
+@app.errorhandler(Exception)
+def storage_or_unexpected_error(error):
+    # A limiter storage outage must never silently disable request limiting.
+    from limits.errors import StorageError
+
+    if isinstance(error, StorageError):
+        app.logger.error("Rate-limit storage is unavailable")
+        return jsonify({"success": False, "result": "", "error": "Request protection is temporarily unavailable"}), 503
+    app.logger.error("Unhandled request error (%s)", type(error).__name__)
+    return jsonify({"success": False, "result": "", "error": "Internal server error"}), 500
+
+
 @app.errorhandler(404)
 def not_found(_error):
     return jsonify({"success": False, "result": "", "error": "Not found"}), 404
@@ -211,12 +336,6 @@ def not_found(_error):
 @app.errorhandler(405)
 def method_not_allowed(_error):
     return jsonify({"success": False, "result": "", "error": "Method not allowed"}), 405
-
-
-@app.errorhandler(Exception)
-def unexpected_error(_error):
-    app.logger.exception("Unhandled request error")
-    return jsonify({"success": False, "result": "", "error": "Internal server error"}), 500
 
 
 if __name__ == '__main__':

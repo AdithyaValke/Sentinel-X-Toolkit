@@ -2,15 +2,19 @@ import hashlib
 
 import pytest
 
-from app import app
+from app import app, limiter, _is_trusted_origin, _rate_limit_configuration
 
 
 @pytest.fixture
 def client():
     app.testing = True
     app.config["PROPAGATE_EXCEPTIONS"] = False
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 60
+    app.config["TRUST_RENDER_CLOUDFLARE_IP"] = False
+    limiter.reset()
     with app.test_client() as test_client:
         yield test_client
+    limiter.reset()
 
 
 def post_process(client, operation, input_text, hash_algorithm=None):
@@ -24,6 +28,16 @@ def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.get_json() == {"status": "ok"}
+
+
+@pytest.mark.parametrize("origin", ["https://payload-workbench.vercel.app", "http://localhost:3000", "https://example.org/"])
+def test_explicit_cors_origins_are_accepted(origin):
+    assert _is_trusted_origin(origin)
+
+
+@pytest.mark.parametrize("origin", ["*", "https://*.example.org", "https://example.org/path", "https://user:pass@example.org", "https://example.org:bad", "file:///tmp"])
+def test_wildcard_and_non_origin_cors_values_are_rejected(origin):
+    assert not _is_trusted_origin(origin)
 
 
 @pytest.mark.parametrize(("operation", "source", "expected"), [
@@ -91,9 +105,15 @@ def test_oversized_payload(client):
 def test_cors_and_http_errors(client):
     response = client.options(
         "/api/process",
-        headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"},
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
     )
     assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
+    assert "POST" in response.headers["Access-Control-Allow-Methods"]
+    assert "Content-Type" in response.headers["Access-Control-Allow-Headers"]
     rejected = client.options(
         "/api/process",
         headers={"Origin": "https://untrusted.example", "Access-Control-Request-Method": "POST"},
@@ -351,4 +371,95 @@ def test_hash_converter_and_identify_hash_coexist_independently(client):
     sha512_resp = post_process(client, "hash", raw_text, "SHA-512")
     assert sha512_resp.status_code == 200
     assert sha512_resp.get_json()["result"] == hashlib.sha512(raw_text.encode("utf-8")).hexdigest()
+
+
+def test_rate_limit_threshold_shared_between_endpoints_and_429_shape(client):
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 2
+    assert post_process(client, "base64_encode", "one").status_code == 200
+    assert client.post("/api/identify-hash", json={"hash": "5d41402abc4b2a76b9719d911017c592"}).status_code == 200
+
+    limited = post_process(client, "base64_encode", "three")
+    assert limited.status_code == 429
+    assert limited.get_json() == {
+        "success": False,
+        "result": "",
+        "error": "Rate limit exceeded. Try again later.",
+    }
+    assert "Retry-After" in limited.headers
+
+
+def test_rate_limit_resets_after_window_with_controlled_clock(client, monkeypatch):
+    import limits.storage.memory
+
+    now = [600.0]
+    monkeypatch.setattr(limits.storage.memory.time, "time", lambda: now[0])
+    limiter.reset()
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
+    assert post_process(client, "base64_encode", "one").status_code == 200
+    assert post_process(client, "base64_encode", "two").status_code == 429
+
+    now[0] = 661.0
+    assert post_process(client, "base64_encode", "after window").status_code == 200
+
+
+def test_render_ip_uses_only_cloudflare_header_and_rejects_bad_values(client):
+    app.config["TRUST_RENDER_CLOUDFLARE_IP"] = True
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
+    first = client.post(
+        "/api/process",
+        json={"input_text": "one", "operation": "base64_encode"},
+        headers={"CF-Connecting-IP": "198.51.100.12", "X-Forwarded-For": "203.0.113.99"},
+    )
+    limited = client.post(
+        "/api/process",
+        json={"input_text": "two", "operation": "base64_encode"},
+        headers={"CF-Connecting-IP": "198.51.100.12", "X-Forwarded-For": "192.0.2.4"},
+    )
+    other = client.post(
+        "/api/process",
+        json={"input_text": "three", "operation": "base64_encode"},
+        headers={"CF-Connecting-IP": "198.51.100.13", "X-Forwarded-For": "198.51.100.12"},
+    )
+    assert first.status_code == 200
+    assert limited.status_code == 429
+    assert other.status_code == 200
+
+    for malformed in ("", "garbage", "198.51.100.1, 203.0.113.1"):
+        response = client.post(
+            "/api/process",
+            json={"input_text": "x", "operation": "base64_encode"},
+            headers={"CF-Connecting-IP": malformed, "X-Forwarded-For": "198.51.100.55"},
+        )
+        assert response.status_code == 503
+        assert response.get_json()["error"] == "Unable to verify client IP"
+
+
+def test_render_rate_limit_requires_redis_and_valid_limit_configuration():
+    with pytest.raises(RuntimeError, match="RATE_LIMIT_STORAGE_URI"):
+        _rate_limit_configuration({"RENDER": "true"})
+    with pytest.raises(RuntimeError, match="shared Redis-compatible"):
+        _rate_limit_configuration({"RENDER": "true", "RATE_LIMIT_STORAGE_URI": "memory://"})
+    assert _rate_limit_configuration({"RENDER": "true", "RATE_LIMIT_STORAGE_URI": "redis://private/0"}) == (
+        True, "redis://private/0", 60
+    )
+    assert _rate_limit_configuration({}) == (False, None, 60)
+    with pytest.raises(RuntimeError, match="positive integer"):
+        _rate_limit_configuration({"API_RATE_LIMIT_PER_MINUTE": "0"})
+
+
+def test_limiter_storage_failure_fails_closed_with_safe_503(client, monkeypatch):
+    from limits.errors import StorageError
+
+    def unavailable(*_args, **_kwargs):
+        raise StorageError("private storage connection detail")
+
+    monkeypatch.setattr(limiter.storage, "incr", unavailable)
+    response = post_process(client, "base64_encode", "input")
+    assert response.status_code == 503
+    assert response.get_json() == {
+        "success": False,
+        "result": "",
+        "error": "Request protection is temporarily unavailable",
+    }
+    assert "private storage connection detail" not in response.get_data(as_text=True)
 

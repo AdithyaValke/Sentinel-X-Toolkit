@@ -5,7 +5,7 @@ Payload Workbench is a small security utility with a Next.js, React, and TypeScr
 ## Requirements
 
 - Python 3.10 or newer
-- Node.js compatible with the Next.js version in `security-payload-workbench dashboard/package.json`
+- Node.js compatible with the Next.js version in `security-payload-workbench-dashboard/package.json`
 - pnpm 12.3.4, as declared by the frontend package manifest
 
 ## Run locally (PowerShell)
@@ -33,7 +33,7 @@ python app.py
 ### Next.js frontend
 
 ```powershell
-cd "security-payload-workbench dashboard"
+cd security-payload-workbench-dashboard
 Copy-Item .env.example .env.local
 corepack pnpm install --frozen-lockfile
 corepack pnpm dev
@@ -156,7 +156,7 @@ Invoke-RestMethod http://localhost:8000/health
 cd security-payload-workbench-backend
 python -m pip install -r requirements.txt
 python -m pytest -q
-cd "..\security-payload-workbench dashboard"
+cd ..\security-payload-workbench-dashboard
 corepack pnpm install --frozen-lockfile
 corepack pnpm exec tsc --noEmit
 corepack pnpm build
@@ -169,11 +169,12 @@ The backend test suite uses pytest, included in `requirements.txt` for this mini
 1. Create a Render Web Service from this repository and use the repository `render.yaml` Blueprint configuration, or configure the service manually.
 2. The service root is `security-payload-workbench-backend`; build with `pip install -r requirements.txt` and start with `gunicorn --bind 0.0.0.0:$PORT app:app`.
 3. Set `FRONTEND_ORIGIN` to the exact deployed frontend origin (scheme and hostname, no path), for example `https://your-frontend.example`. The app refuses to start on Render without this setting. `GET /health` is the health-check path.
-4. Wait for Render to report the service healthy. Use the service URL Render assigns; no backend URL is assumed here.
+4. Create a Redis-compatible Render Key Value service in the same region, then set `RATE_LIMIT_STORAGE_URI` to its **internal** connection URL. Keep this value secret. Set `API_RATE_LIMIT_PER_MINUTE` to a positive integer; it defaults to `60`.
+5. Wait for Render to report the service healthy. Missing Redis configuration prevents the backend from starting; if Redis later becomes unavailable, API requests fail closed with HTTP 503 until protection recovers.
 
 ## Deploy the Next.js frontend to Vercel
 
-1. Import this repository into Vercel and set the project root to `security-payload-workbench dashboard`.
+1. Import this repository into Vercel and set the project root to `security-payload-workbench-dashboard`.
 2. Use the Next.js framework preset and the package manifest scripts. Vercel should install with pnpm from `pnpm-lock.yaml`.
 3. Set `NEXT_PUBLIC_API_URL` to the actual Render service base URL, without `/api/process` (for example, the URL shown in your Render dashboard).
 4. Deploy. If you use a custom frontend domain, update the backend's `FRONTEND_ORIGIN` to that exact origin and redeploy/restart the API.
@@ -186,3 +187,15 @@ The backend test suite uses pytest, included in `requirements.txt` for this mini
 - **Frontend cannot reach Flask:** Check `NEXT_PUBLIC_API_URL`, confirm `/health` is reachable, and verify CORS allows the exact frontend origin. Since the variable is public and compiled into the client bundle, redeploy the frontend after changing it.
 - **Local API connection fails:** Start Flask on port 8000 and confirm `.env.local` contains `NEXT_PUBLIC_API_URL=http://localhost:8000`.
 - **Install/build fails:** Use the pnpm version declared in `package.json` and install from the frontend project root with the frozen lockfile.
+
+## Public API rate limiting
+
+`POST /api/process` and `POST /api/identify-hash` share a Redis-backed fixed-window limit. Configure `RATE_LIMIT_STORAGE_URI` with a private Redis-compatible URL and `API_RATE_LIMIT_PER_MINUTE` with the positive per-IP threshold (initial default: 60). A Render deployment must have the shared storage URL or the Flask app refuses to start. Do not set the storage URI to `memory://` in production: in-memory state is per process and does not protect multiple Gunicorn workers or service instances. Storage outages fail closed with HTTP 503; exceeded limits receive a safe JSON HTTP 429 response.
+
+Render routes inbound web-service traffic through Cloudflare. In Render only, the limiter keys on the single valid `CF-Connecting-IP` address, which Cloudflare replaces with the visitor address. It ignores `X-Forwarded-For` and rejects missing or malformed trusted-IP metadata with HTTP 503. Local development uses the socket peer address and never trusts forwarding headers.
+
+The Render `onrender.com` origin remains publicly reachable. Vercel-side controls alone would be bypassable through direct origin requests; the Flask Redis limiter still applies to requests that reach the Render service, but this repository does not block direct-origin access. Configure the Render Key Value service in the same region as the backend and use its internal URL.
+
+## Remaining dependency advisory
+
+The current full dependency audit identifies `shadcn > fast-glob > micromatch > braces@3.0.3` and `shadcn > ts-morph > @ts-morph/common > fast-glob > micromatch > braces@3.0.3` (development/build dependency paths). GHSA-vfj7-8cjw-p6xm / CVE-2026-93687 affects `braces <=3.0.3`, and the GitHub advisory currently lists no patched release. This dependency is absent from the production dependency tree after `shadcn` was moved to development dependencies, but remains present during build tooling. Its nested-pattern stack exhaustion risk applies to input processed by that toolchain; it is not an exposed Flask runtime endpoint in this project. Do not force an unverified override; update `shadcn`/upstream dependencies when a compatible fixed `braces` release becomes available. See the [GitHub advisory](https://github.com/advisories/ghsa-vfj7-8cjw-p6xm).
