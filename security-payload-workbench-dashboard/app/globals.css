@@ -206,14 +206,35 @@
   .app-breadcrumb { @apply truncate font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500 sm:text-[10px] sm:tracking-[0.18em]; }
   .app-page-title { @apply mt-1 truncate text-sm font-semibold text-slate-200 sm:text-base; }
   .app-header-tools { @apply contents lg:flex lg:ml-auto lg:items-center lg:gap-3; }
-  .app-search { @apply col-start-1 row-start-2 flex h-11 min-w-0 items-center gap-2 rounded-xl border px-3; }
-  html.dark .app-search { @apply border-white/[0.08] bg-white/[0.025] text-slate-600; }
+  .app-search-container { @apply relative col-start-1 row-start-2 min-w-0; }
+  .app-search { @apply flex h-11 min-w-0 items-center gap-2 rounded-xl border px-3 transition; }
+  html.dark .app-search { @apply border-white/[0.08] bg-white/[0.025] text-slate-500; }
   html.light .app-search { @apply border-slate-200 bg-slate-50 text-slate-500; }
+  .app-search:focus-within { @apply border-cyan-500/60 ring-2 ring-cyan-500/15; }
   .app-search svg { @apply size-4 shrink-0; }
-  .app-search > span { @apply min-w-0 flex-1 truncate text-xs; }
+  .app-search input { @apply min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100; }
   .app-search kbd { @apply hidden shrink-0 items-center gap-0.5 rounded border px-1.5 py-0.5 font-mono text-[9px] sm:flex; }
   html.dark .app-search kbd { @apply border-white/10 text-slate-600; }
   html.light .app-search kbd { @apply border-slate-200 text-slate-500; }
+  .app-search-clear { @apply flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:hover:bg-white/10 dark:hover:text-white; }
+  .app-search-clear svg { @apply size-4; }
+  .app-search-results { @apply absolute left-0 top-[calc(100%+0.5rem)] z-50 w-[min(26rem,calc(100vw-1rem))] overflow-hidden rounded-xl border p-1.5 shadow-xl; }
+  html.dark .app-search-results { @apply border-slate-700 bg-slate-900 text-slate-100 shadow-black/40; }
+  html.light .app-search-results { @apply border-slate-200 bg-white text-slate-900 shadow-slate-900/15; }
+  .app-search-caption { @apply px-3 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-slate-500; }
+  .app-search-results ul { @apply m-0 max-h-[min(60vh,22rem)] list-none overflow-y-auto p-0; }
+  .app-search-result { @apply flex min-h-14 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-500; }
+  html.dark .app-search-result { @apply text-slate-300 hover:bg-white/[0.05]; }
+  html.light .app-search-result { @apply text-slate-700 hover:bg-slate-50; }
+  html.dark .app-search-result-active { @apply bg-cyan-400/10 text-cyan-100; }
+  html.light .app-search-result-active { @apply bg-cyan-50 text-cyan-900; }
+  .app-search-result-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-300; }
+  .app-search-result-icon svg { @apply size-4; }
+  .app-search-result-copy { @apply flex min-w-0 flex-1 flex-col gap-1; }
+  .app-search-result-copy strong { @apply truncate text-xs font-semibold; }
+  .app-search-result-copy small { @apply line-clamp-2 text-[10px] leading-4 text-slate-500; }
+  .app-search-result-arrow { @apply size-4 shrink-0 text-slate-400; }
+  .app-search-empty { @apply px-3 py-5 text-center text-xs text-slate-500; }
   .app-header-divider { @apply col-start-2 row-start-2 h-8 w-px bg-slate-300 dark:bg-slate-700; }
   .app-theme-toggle { @apply col-start-3 row-start-1 inline-flex size-11 shrink-0 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 lg:order-3; }
   .app-theme-toggle svg { @apply size-4; }
@@ -234,7 +255,7 @@
   }
   @media (min-width: 1024px) {
     .app-page-heading { @apply flex-1; }
-    .app-search { @apply w-48 flex-none; }
+    .app-search-container { @apply w-48 flex-none; }
     .app-header-divider { @apply block; }
     .app-theme-toggle { @apply order-3; }
     .profile-display { @apply order-2; }
