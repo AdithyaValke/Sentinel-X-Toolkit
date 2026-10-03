@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Security Workbench',
-  description: 'A focused local workspace for encoding, decoding, and hashing text.',
+  title: 'Payload Workbench',
+  description: 'A focused security workspace for payload and hash analysis tools.',
   generator: 'v0.app',
   icons: {
     icon: [
