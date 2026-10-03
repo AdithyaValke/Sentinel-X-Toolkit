@@ -35,6 +35,7 @@ const operations: { id: Operation; label: string; icon: typeof LockKeyhole }[] =
   { id: 'url-decode', label: 'URL Decode', icon: Link2 },
   { id: 'hex-encode', label: 'Hex Encode', icon: Hash },
   { id: 'hex-decode', label: 'Hex Decode', icon: Hash },
+  { id: 'hash', label: 'Hash Converter', icon: Hash },
   { id: 'identify-hash', label: 'Identify Hash', icon: Fingerprint },
 ]
 
@@ -59,7 +60,7 @@ export default function Page() {
   const [darkMode, setDarkMode] = useState(true)
 
   async function executeOperation(textToProcess: string, op: Operation, hashAlgo: HashAlgorithm | null) {
-    if (!textToProcess.trim()) {
+    if (!textToProcess) {
       setOutput('')
       setError('')
       setAnalysisData(null)
@@ -109,7 +110,7 @@ export default function Page() {
     setError('')
     setAnalysisData(null)
 
-    if (!input.trim()) {
+    if (!input) {
       setLoading(false)
       return
     }
@@ -147,9 +148,7 @@ export default function Page() {
 
   function loadExample(val: string) {
     setInput(val)
-    if (operation !== 'identify-hash') {
-      setOperation('identify-hash')
-    }
+    setOperation('identify-hash')
   }
 
   return (
@@ -164,7 +163,7 @@ export default function Page() {
               Security <span>Workbench</span>
             </h1>
             <p>
-              A focused workspace for encoding, decoding, hashing, identifying hash algorithms, and inspecting payloads
+              A focused workspace for encoding, decoding, hashing (Hash Converter), identifying hash algorithms, and inspecting payloads
               through the Flask API.
             </p>
           </div>
@@ -212,7 +211,7 @@ export default function Page() {
                   key={id}
                   type="button"
                   onClick={() => setOperation(id)}
-                  className={`operation-button ${id === 'identify-hash' ? 'col-span-2' : ''} ${
+                  className={`operation-button ${
                     operation === id ? 'operation-button-active' : ''
                   }`}
                 >
@@ -222,37 +221,39 @@ export default function Page() {
               ))}
             </div>
 
-            {operation === 'hash' && (
-              <>
-                <label className="section-label hash-label" htmlFor="hash-algorithm">
-                  Hash algorithm
-                </label>
-                <div className="hash-tile">
-                  <Hash />
-                  <select
-                    id="hash-algorithm"
-                    value={selectedHash}
-                    onChange={(event) => {
-                      setSelectedHash(event.target.value as HashAlgorithm)
-                      setOperation('hash')
-                    }}
-                    className="hash-select"
-                  >
-                    <option>MD5</option>
-                    <option>SHA-256</option>
-                    <option>SHA-512</option>
-                  </select>
-                </div>
-              </>
-            )}
+            {/* Hash Converter Algorithm Selector - Always accessible */}
+            <label className="section-label hash-label" htmlFor="hash-algorithm">
+              Hash algorithm (Converter)
+            </label>
+            <div
+              className={`hash-tile transition ${operation === 'hash' ? 'operation-button-active' : ''}`}
+              onClick={() => setOperation('hash')}
+            >
+              <Hash />
+              <select
+                id="hash-algorithm"
+                value={selectedHash}
+                onChange={(event) => {
+                  setSelectedHash(event.target.value as HashAlgorithm)
+                  setOperation('hash')
+                }}
+                className="hash-select"
+                aria-label="Hash algorithm selection"
+              >
+                <option value="MD5">MD5</option>
+                <option value="SHA-256">SHA-256</option>
+                <option value="SHA-512">SHA-512</option>
+              </select>
+            </div>
 
+            {/* Identify Hash Specific Controls */}
             {operation === 'identify-hash' && (
               <div className="mt-4 flex flex-col gap-2.5">
                 <button
                   type="button"
                   className="hash-identify-btn"
                   onClick={() => executeOperation(input, 'identify-hash', null)}
-                  disabled={!input.trim() || loading}
+                  disabled={!input || loading}
                   aria-label="Analyze and identify hash candidates"
                 >
                   {loading ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />}
