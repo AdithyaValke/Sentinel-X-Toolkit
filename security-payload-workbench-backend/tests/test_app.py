@@ -112,3 +112,207 @@ def test_unexpected_error_does_not_leak_details(client, monkeypatch):
     assert response.status_code == 500
     assert response.get_json()["error"] == "Internal server error"
     assert "sensitive internal detail" not in response.get_data(as_text=True)
+
+
+# ============================================================================
+# Identify Hash Tests
+# ============================================================================
+
+def test_identify_hash_32_char_hex_ambiguous(client):
+    """Test Case 1 & 14: 32-character hex digest matches MD5, NTLM, MD4, and LM."""
+    h = "5d41402abc4b2a76b9719d911017c592"
+    response = post_process(client, "identify_hash", h)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Matches: MD5 (Hashcat: 0), NTLM (Hashcat: 1000), or MD4 (Hashcat: 900)"
+    assert data["input_length"] == 32
+    assert data["character_format"] == "hexadecimal"
+    assert data["is_ambiguous"] is True
+    assert "cannot definitively identify" in data["warning"]
+    candidate_algos = [c["algorithm"] for c in data["candidates"]]
+    assert "MD5" in candidate_algos
+    assert "NTLM" in candidate_algos
+    assert "MD4" in candidate_algos
+    assert "LM" in candidate_algos
+
+
+def test_identify_hash_40_char_hex(client):
+    """Test Case 2: 40-character hex digest matches SHA-1."""
+    h = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
+    response = post_process(client, "identify_hash", h)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Matches: SHA-1 (Hashcat: 100)"
+    assert data["input_length"] == 40
+    assert any(c["algorithm"] == "SHA-1" for c in data["candidates"])
+
+
+def test_identify_hash_64_char_hex(client):
+    """Test Case 3: 64-character hex digest matches SHA-256."""
+    h = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    response = post_process(client, "identify_hash", h)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Matches: SHA-256 (Hashcat: 1400)"
+    assert data["input_length"] == 64
+    assert any(c["algorithm"] == "SHA-256" for c in data["candidates"])
+
+
+def test_identify_hash_128_char_hex(client):
+    """Test Case 4: 128-character hex digest matches SHA-512."""
+    h = "9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043"
+    response = post_process(client, "identify_hash", h)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Matches: SHA-512 (Hashcat: 1700)"
+    assert data["input_length"] == 128
+    assert any(c["algorithm"] == "SHA-512" for c in data["candidates"])
+
+
+def test_identify_hash_bcrypt_format(client):
+    """Test Case 5: Valid bcrypt format with $2a$, $2b$, or $2y$ prefix and length 60."""
+    bcrypt_sample = "$2a$12$e8KERg7gm.bQ1qV8q6uP5.9M5M.x2Y7Wv0.qP4P.r8X1V3Z2Y7Wv0"
+    response = post_process(client, "identify_hash", bcrypt_sample)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Matches: bcrypt (Hashcat: 3200)"
+    assert data["input_length"] == 60
+    assert data["character_format"] == "modular_crypt_bcrypt"
+    assert any(c["algorithm"] == "bcrypt" for c in data["candidates"])
+
+
+def test_identify_hash_argon2_format(client):
+    """Test Case 6: Valid Argon2 format."""
+    argon2_sample = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgqlndPuxWCsUzbsRUhq"
+    response = post_process(client, "identify_hash", argon2_sample)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Matches: Argon2 (Hashcat: 25300)"
+    assert data["character_format"] == "modular_crypt_argon2"
+    assert any("Argon2" in c["algorithm"] for c in data["candidates"])
+
+
+def test_identify_hash_unsupported_string(client):
+    """Test Case 7: Unsupported string."""
+    response = post_process(client, "identify_hash", "not_a_valid_hash_format_xyz_123")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["result"] == "Unknown Hash Format. Check length and character set."
+    assert data["candidates"] == []
+
+
+def test_identify_hash_empty_input(client):
+    """Test Case 8: Empty and whitespace-only input."""
+    res_empty = post_process(client, "identify_hash", "")
+    assert res_empty.status_code == 400
+    assert res_empty.get_json()["success"] is False
+
+    res_spaces = post_process(client, "identify_hash", "   \t\n  ")
+    assert res_spaces.status_code == 400
+    assert res_spaces.get_json()["success"] is False
+
+
+def test_identify_hash_invalid_hex_characters(client):
+    """Test Case 9: 32 chars but invalid hex chars."""
+    bad_hex = "5d41402abc4b2a76b9719d911017c59g"  # ends with 'g'
+    response = post_process(client, "identify_hash", bad_hex)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["result"] == "Unknown Hash Format. Check length and character set."
+    assert data["candidates"] == []
+
+
+def test_identify_hash_whitespace_trimming(client):
+    """Test Case 10: Leading and trailing whitespace should be trimmed."""
+    h = "  5d41402abc4b2a76b9719d911017c592 \n\t "
+    response = post_process(client, "identify_hash", h)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["input_length"] == 32
+    assert "MD5" in [c["algorithm"] for c in data["candidates"]]
+
+
+def test_identify_hash_uppercase_hex(client):
+    """Test Case 11: Uppercase hex characters supported."""
+    h = "5D41402ABC4B2A76B9719D911017C592"
+    response = post_process(client, "identify_hash", h)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["character_format"] == "hexadecimal"
+    assert data["input_length"] == 32
+    assert "MD5" in [c["algorithm"] for c in data["candidates"]]
+
+
+def test_identify_hash_multiple_lines(client):
+    """Test Case 12: Multiple lines analyzed independently."""
+    multiline = "5d41402abc4b2a76b9719d911017c592\n2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    response = post_process(client, "identify_hash", multiline)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert len(data["lines"]) == 2
+    assert "MD5" in [c["algorithm"] for c in data["lines"][0]["candidates"]]
+    assert "SHA-256" in [c["algorithm"] for c in data["lines"][1]["candidates"]]
+
+
+def test_identify_hash_oversized_input(client):
+    """Test Case 13: Oversized input rejected."""
+    oversized = "a" * 5000
+    response = post_process(client, "identify_hash", oversized)
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+
+def test_identify_hash_malformed_prefixed_formats(client):
+    """Test Case 15: Malformed prefixed hash formats."""
+    # bcrypt prefix but length != 60
+    malformed_bcrypt = "$2a$12$short"
+    res1 = post_process(client, "identify_hash", malformed_bcrypt)
+    assert res1.status_code == 200
+    assert res1.get_json()["result"] == "Unknown Hash Format. Check length and character set."
+
+    # Unix prefix with wrong length
+    malformed_unix = "$1$toolong"
+    res2 = post_process(client, "identify_hash", malformed_unix)
+    assert res2.status_code == 200
+    assert res2.get_json()["result"] == "Unknown Hash Format. Check length and character set."
+
+
+def test_identify_hash_other_formats(client):
+    """Test additional recognizable formats: CRC32, MySQL, Unix crypt, scrypt."""
+    # CRC32: 8 hex chars
+    res_crc = post_process(client, "identify_hash", "a1b2c3d4")
+    assert res_crc.status_code == 200
+    assert any(c["algorithm"] == "CRC32" for c in res_crc.get_json()["candidates"])
+
+    # MySQL 4.1 prefixed: * + 40 hex chars
+    res_mysql = post_process(client, "identify_hash", "*" + "a" * 40)
+    assert res_mysql.status_code == 200
+    assert any("MySQL" in c["algorithm"] for c in res_mysql.get_json()["candidates"])
+
+
+def test_dedicated_identify_hash_endpoint(client):
+    """Test dedicated POST /api/identify-hash route."""
+    h = "5d41402abc4b2a76b9719d911017c592"
+    # accepts 'hash' key
+    res1 = client.post("/api/identify-hash", json={"hash": h})
+    assert res1.status_code == 200
+    assert res1.get_json()["input_length"] == 32
+
+    # accepts 'input_text' key
+    res2 = client.post("/api/identify-hash", json={"input_text": h})
+    assert res2.status_code == 200
+    assert res2.get_json()["input_length"] == 32
+
+    # rejects missing / invalid
+    res_invalid = client.post("/api/identify-hash", json={"hash": ""})
+    assert res_invalid.status_code == 400

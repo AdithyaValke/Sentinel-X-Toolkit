@@ -53,12 +53,100 @@ corepack pnpm dev
 }
 ```
 
-Supported operations are `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode`, and `hash`. Supported hash names are MD5, SHA-256, and SHA-512 (case and hyphens are normalized). Responses have `{ "success": boolean, "result": string, "error": string | null }`. Validation failures use 400, a wrong content type uses 415, and requests over 10 KiB use 413. The API health check is `GET /health`.
+Supported operations are `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, `hex_decode`, `hash`, and `identify_hash`. Supported hash names for hashing are MD5, SHA-256, and SHA-512 (case and hyphens are normalized). Responses have `{ "success": boolean, "result": string, "error": string | null }`. Validation failures use 400, a wrong content type uses 415, and requests over 10 KiB use 413. The API health check is `GET /health`.
+
+### Hash Identification (`identify_hash` and `POST /api/identify-hash`)
+
+The **Identify Hash Function** analyzes candidate cryptographic algorithms and password formats based on digest length, character sets, and structured prefixes.
+
+#### Request via `/api/process`
+
+```json
+{
+  "input_text": "5d41402abc4b2a76b9719d911017c592",
+  "operation": "identify_hash"
+}
+```
+
+#### Dedicated Endpoint: `POST /api/identify-hash`
+
+```json
+{
+  "hash": "5d41402abc4b2a76b9719d911017c592"
+}
+```
+
+#### Response Structure
+
+```json
+{
+  "success": true,
+  "result": "Matches: MD5 (Hashcat: 0), NTLM (Hashcat: 1000), or MD4 (Hashcat: 900)",
+  "error": null,
+  "input_length": 32,
+  "character_format": "hexadecimal",
+  "candidates": [
+    {
+      "algorithm": "MD5",
+      "hashcat_mode": "0",
+      "evidence": "length_and_format_match",
+      "explanation": "Input is 32 hexadecimal characters (128-bit), consistent with a raw MD5 digest."
+    },
+    {
+      "algorithm": "NTLM",
+      "hashcat_mode": "1000",
+      "evidence": "length_and_format_match",
+      "explanation": "NTLM representations are also 32 hexadecimal characters (MD4 of UTF-16LE)."
+    },
+    {
+      "algorithm": "MD4",
+      "hashcat_mode": "900",
+      "evidence": "length_and_format_match",
+      "explanation": "MD4 produces 32 hexadecimal characters; common in legacy systems and protocols."
+    },
+    {
+      "algorithm": "LM",
+      "hashcat_mode": "3000",
+      "evidence": "length_and_format_match",
+      "explanation": "LAN Manager (LM) hashes are 32 hexadecimal characters (two 7-byte DES halves)."
+    }
+  ],
+  "is_ambiguous": true,
+  "warning": "Digest length and character format alone cannot definitively identify a hash algorithm. Multiple cryptographic algorithms produce identical output lengths.",
+  "recommendation": "Verify candidate algorithm using application context, database schema, prefix markers, or source code configuration."
+}
+```
+
+#### Supported Formats and Heuristics
+
+- **Raw Hexadecimal Digests:**
+  - 8 characters: CRC32, CRC32b (Hashcat: 11500)
+  - 16 characters: MySQL 3.23 (Hashcat: 200)
+  - 32 characters: MD5 (Hashcat: 0), NTLM (Hashcat: 1000), MD4 (Hashcat: 900), LM (Hashcat: 3000)
+  - 40 characters: SHA-1 (Hashcat: 100), MySQL 4.1+/5+ (Hashcat: 300), RIPEMD-160 (Hashcat: 6000)
+  - 41 characters with `*`: MySQL 4.1+/5+ standard format (`*` + 40 hex chars)
+  - 56 characters: SHA-224 (Hashcat: 1300), SHA-512/224
+  - 64 characters: SHA-256 (Hashcat: 1400), SHA-512/256, SHA3-256 (Hashcat: 17400), BLAKE2s-256
+  - 96 characters: SHA-384 (Hashcat: 10800), SHA3-384 (Hashcat: 17500)
+  - 128 characters: SHA-512 (Hashcat: 1700), SHA3-512 (Hashcat: 17600), BLAKE2b-512
+- **Password & Modular Crypt Formats:**
+  - `bcrypt`: Recognizable `$2a$`, `$2b$`, or `$2y$` prefixes, 60-character length (Hashcat: 3200)
+  - `Argon2`: Recognizable `$argon2id$`, `$argon2i$`, or `$argon2d$` structured prefixes (Hashcat: 25300)
+  - `scrypt`: Documented `$7$` or `$scrypt$` modular crypt prefixes (Hashcat: 8900)
+  - `Unix Crypt`: `$1$` (MD5-crypt, Hashcat: 500), `$5$` (SHA-256-crypt, Hashcat: 7400), `$6$` (SHA-512-crypt, Hashcat: 1800), DES-crypt (13 characters from `[a-zA-Z0-9./]`, Hashcat: 1500)
+- **Multiline Input:** Multiple hashes separated by newlines are analyzed line-by-line independently.
+
+#### Known Limitations and Ambiguity Principles
+
+- **Heuristic Nature:** Hash identification is format-based and deterministic, but cannot definitively prove which algorithm produced a raw digest. Many distinct algorithms output identical digest lengths (e.g., MD5 and NTLM are both 32 hexadecimal characters).
+- **No Cryptographic Guarantee:** The presence of a recognized structure or prefix does not verify that the hash is authentic, unmodified, or computationally valid.
+- **Verification Recommendation:** Always cross-reference candidates with application context, configuration files, database column names, or password policy settings.
 
 Example:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/process -ContentType "application/json" -Body '{"input_text":"hello","operation":"base64_encode"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/process -ContentType "application/json" -Body '{"input_text":"5d41402abc4b2a76b9719d911017c592","operation":"identify_hash"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/identify-hash -ContentType "application/json" -Body '{"hash":"$2a$12$e8KERg7gm.bQ1qV8q6uP5.9M5M.x2Y7Wv0.qP4P.r8X1V3Z2Y7Wv0"}'
 Invoke-RestMethod http://localhost:8000/health
 ```
 

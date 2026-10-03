@@ -214,4 +214,16 @@
   .workbench-footer > div { @apply flex flex-wrap gap-4; }
   .footer-action, .workbench-footer a { @apply inline-flex items-center gap-1.5 transition hover:text-cyan-600 dark:hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40; }
   .footer-action svg { @apply size-3.5; }
+  .hash-identify-btn { @apply mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 font-mono text-xs font-semibold text-white shadow-sm transition hover:bg-cyan-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400; }
+  .example-pill { @apply rounded-lg border px-2 py-1 font-mono text-[10px] transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500; }
+  .dark .example-pill { @apply border-slate-800 bg-slate-900 text-slate-300 hover:border-cyan-500/50 hover:text-cyan-300; }
+  .light .example-pill { @apply border-slate-200 bg-slate-100 text-slate-700 hover:border-cyan-500/50 hover:text-cyan-800; }
+  .hash-results-pane { @apply flex min-h-0 w-full flex-1 flex-col gap-3 overflow-y-auto rounded-xl border p-4 font-mono text-xs; }
+  .dark .hash-results-pane { @apply border-slate-800 bg-slate-950/80 text-slate-200; }
+  .light .hash-results-pane { @apply border-slate-200 bg-slate-50 text-slate-800; }
+  .candidate-card { @apply flex flex-col gap-2 rounded-xl border p-3 transition; }
+  .dark .candidate-card { @apply border-slate-800/80 bg-slate-900/60; }
+  .light .candidate-card { @apply border-slate-200 bg-white shadow-sm; }
+  .warning-banner { @apply flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300; }
+  .info-banner { @apply flex items-start gap-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-cyan-800 dark:text-cyan-300; }
 }

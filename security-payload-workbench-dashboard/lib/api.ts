@@ -1,10 +1,41 @@
-import type { HashAlgorithm } from '@/app/page';
+export type HashAlgorithm = 'MD5' | 'SHA-256' | 'SHA-512';
+
+export interface HashCandidate {
+  algorithm: string;
+  hashcat_mode?: string | null;
+  evidence: string;
+  explanation: string;
+}
+
+export interface HashLineAnalysis {
+  input_summary?: string;
+  input_length: number;
+  character_format: string;
+  candidates: HashCandidate[];
+  is_ambiguous: boolean;
+  warning?: string | null;
+  recommendation?: string | null;
+  result: string;
+}
+
+export interface BackendResponse {
+  success: boolean;
+  result: string;
+  error: string | null;
+  input_length?: number;
+  character_format?: string;
+  candidates?: HashCandidate[];
+  is_ambiguous?: boolean;
+  warning?: string | null;
+  recommendation?: string | null;
+  lines?: HashLineAnalysis[];
+}
 
 export async function callBackend(
   operation: string,
   inputText: string,
   hashAlgo: HashAlgorithm | null = null
-): Promise<{ success: boolean; result: string; error: string | null }> {
+): Promise<BackendResponse> {
   const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (!configuredUrl && process.env.NODE_ENV === 'production') {
     throw new Error('NEXT_PUBLIC_API_URL is not configured.');
@@ -44,11 +75,22 @@ export async function callBackend(
     ) {
       throw new Error('The API returned an invalid response.');
     }
-    const result = data as { success: boolean; result: string; error?: string | null };
+    const parsed = data as BackendResponse;
     if (!response.ok) {
-      throw new Error(result.error || `The API returned HTTP ${response.status}.`);
+      throw new Error(parsed.error || `The API returned HTTP ${response.status}.`);
     }
-    return { success: result.success, result: result.result, error: result.error ?? null };
+    return {
+      success: parsed.success,
+      result: parsed.result,
+      error: parsed.error ?? null,
+      input_length: parsed.input_length,
+      character_format: parsed.character_format,
+      candidates: parsed.candidates,
+      is_ambiguous: parsed.is_ambiguous,
+      warning: parsed.warning,
+      recommendation: parsed.recommendation,
+      lines: parsed.lines,
+    };
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error('The request timed out. Check that the Flask API is running and reachable.');
