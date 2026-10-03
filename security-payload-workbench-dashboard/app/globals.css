@@ -166,8 +166,9 @@
   main { @apply min-h-screen transition-colors duration-300; }
   main.dark { @apply bg-slate-950 text-slate-100; }
   main.light { @apply bg-slate-50 text-slate-900; }
-  .workbench-shell { @apply mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-5 sm:px-8 lg:h-screen lg:min-h-0 lg:px-10 lg:py-6; }
-  .workbench-header { @apply mb-5 flex flex-col gap-5 border-b pb-5 sm:flex-row sm:items-end sm:justify-between; }
+  .workbench-shell { @apply mx-auto flex min-h-screen w-full max-w-7xl flex-col overflow-x-hidden px-4 py-4 sm:px-8 sm:py-5 lg:h-screen lg:min-h-0 lg:px-10 lg:py-6; }
+  .workbench-header { @apply mb-5 flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between; }
+  .workbench-header .theme-toggle { @apply min-h-11 self-start sm:self-auto; }
   .dark .workbench-header, .dark .workbench-footer { @apply border-slate-800; }
   .light .workbench-header, .light .workbench-footer { @apply border-slate-200; }
   .eyebrow { @apply mb-3 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-600 dark:text-cyan-400; }

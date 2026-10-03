@@ -97,7 +97,7 @@ export function DashboardShell() {
         <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-white/[0.07] bg-[#0b0f18] px-4 py-5 transition-transform duration-200 lg:relative lg:z-0 lg:translate-x-0 ${collapsed ? 'lg:w-[84px]' : 'lg:w-72'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-2`}>
             <Brand compact={collapsed} />
-            {!collapsed && <button className="hidden rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 lg:block" onClick={() => setCollapsed(true)} aria-label="Collapse sidebar"><PanelLeftClose className="size-4" /></button>}
+            {!collapsed && <button className="hidden min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 lg:flex" onClick={() => setCollapsed(true)} aria-label="Collapse sidebar"><PanelLeftClose className="size-4" /></button>}
             <button className="rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close sidebar"><X className="size-4" /></button>
           </div>
           {collapsed && <button className="mx-auto mt-6 hidden rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 lg:block" onClick={() => setCollapsed(false)} aria-label="Expand sidebar"><PanelLeftOpen className="size-4" /></button>}
