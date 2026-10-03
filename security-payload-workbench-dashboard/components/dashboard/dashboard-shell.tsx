@@ -26,7 +26,7 @@ const navigation = [
   { label: 'Payload Tools', icon: TerminalSquare, href: '/?operation=base64-encode' },
   { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
   { label: 'Identify Hash', icon: Fingerprint, href: '/identify-hash' },
-  { label: 'Security Lab', icon: FlaskConical, href: '/' },
+  { label: 'Security Lab', icon: FlaskConical, href: '/security-lab' },
   { label: 'Recent Activity', icon: Activity, href: '/' },
 ]
 
@@ -60,7 +60,7 @@ const tools = [
     description: 'Explore practical security utilities and validate suspicious input safely.',
     icon: FlaskConical,
     accent: 'text-emerald-300 bg-emerald-400/10 ring-emerald-300/20',
-    href: '/',
+    href: '/security-lab',
     tag: 'Explore',
   },
 ]
