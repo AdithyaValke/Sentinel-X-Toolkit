@@ -1,7 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
-import { AppHeader } from '@/components/app-header'
+import { AppShell } from '@/components/app-shell'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
@@ -32,8 +32,7 @@ export default function RootLayout({
           {`try{var t=localStorage.getItem('payload-workbench-theme');var d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.classList.toggle('light',!d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}`}
         </Script>
         <ThemeProvider>
-          <AppHeader />
-          {children}
+          <AppShell>{children}</AppShell>
           {process.env.NODE_ENV === 'production' && <Analytics />}
         </ThemeProvider>
       </body>
