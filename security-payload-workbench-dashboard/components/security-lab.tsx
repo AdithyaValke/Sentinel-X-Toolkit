@@ -30,6 +30,7 @@ import {
   Wifi,
   Zap,
 } from 'lucide-react'
+import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
 
 // ─── Payload Generator ───────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ const PAYLOAD_CATEGORIES: PayloadCategory[] = [
     id: 'curl-beacon',
     label: 'HTTP Beacon Probe',
     description:
-      'Simple HTTP GET/HEAD probe to check HTTP/HTTPS reachability on the configured IP and port.',
+      'Simple HTTP GET probe to check HTTP reachability on the configured IP and port.',
     platforms: ['Linux', 'Windows', 'macOS'],
   },
 ]
@@ -106,34 +107,42 @@ function generatePayload(
           `$port   = ${portNum}`,
           ``,
           `$client = New-Object System.Net.Sockets.TcpClient`,
+          `$connect = $null`,
           `try {`,
-          `    $client.Connect($target, $port)`,
+          `    $connect = $client.BeginConnect($target, $port, $null, $null)`,
+          `    if (-not $connect.AsyncWaitHandle.WaitOne(5000, $false)) { throw [TimeoutException]::new('Connection timed out after 5 seconds.') }`,
+          `    $client.EndConnect($connect)`,
           `    Write-Host "[$( Get-Date -f 'HH:mm:ss' )] TCP $target:${portNum} — REACHABLE" -ForegroundColor Green`,
+          `} catch [TimeoutException] {`,
+          `    Write-Host "[$( Get-Date -f 'HH:mm:ss' )] TCP $target:${portNum} — TIMED OUT after 5 seconds" -ForegroundColor Red`,
           `} catch {`,
           `    Write-Host "[$( Get-Date -f 'HH:mm:ss' )] TCP $target:${portNum} — UNREACHABLE: $_" -ForegroundColor Red`,
           `} finally {`,
+          `    if ($connect) { $connect.AsyncWaitHandle.Close() }`,
           `    $client.Dispose()`,
           `}`,
         ].join('\n')
       }
-      // Linux / macOS (bash)
+      // Linux / macOS (Python socket timeout works on both platforms)
       return [
         `# [REFERENCE ONLY — NOT FOR UNAUTHORIZED USE]`,
-        `# Bash TCP connectivity test to ${ip}:${portNum}`,
+        `# Python 3 TCP connectivity test to ${ip}:${portNum}`,
         `#`,
         `# Purpose: Verify that TCP port ${portNum} is reachable at ${ip}`,
-        `# Uses /dev/tcp (bash built-in) — no external binary required.`,
+        `# Uses a 5-second socket timeout and distinguishes timeout from connection failure.`,
         `# This probes only — it does not execute any remote code.`,
         ``,
-        `TARGET="${ip}"`,
-        `PORT=${portNum}`,
-        `TIMEOUT=5`,
-        ``,
-        `if (echo >/dev/tcp/"$TARGET"/"$PORT") 2>/dev/null; then`,
-        `    echo "$(date +%H:%M:%S) TCP $TARGET:$PORT — REACHABLE"`,
-        `else`,
-        `    echo "$(date +%H:%M:%S) TCP $TARGET:$PORT — UNREACHABLE (timeout: ${portNum}s)"`,
-        `fi`,
+        `python3 - "${ip}" ${portNum} <<'PY'`,
+        `import socket, sys`,
+        `host, port = sys.argv[1], int(sys.argv[2])`,
+        `try:`,
+        `    with socket.create_connection((host, port), timeout=5):`,
+        `        print(f"TCP {host}:{port} — REACHABLE")`,
+        `except TimeoutError:`,
+        `    print(f"TCP {host}:{port} — TIMED OUT after 5 seconds")`,
+        `except OSError as error:`,
+        `    print(f"TCP {host}:{port} — UNREACHABLE: {error}")`,
+        `PY`,
       ].join('\n')
     }
 
@@ -215,7 +224,7 @@ function generatePayload(
         `# socat TCP-LISTEN:<LOCAL_PORT>,fork TCP:${ip}:${portNum}`,
         `#`,
         `# ── TLS relay (TLS in → plain TCP out) ────────────────────────────────────`,
-        `# socat OPENSSL-LISTEN:<LOCAL_PORT>,cert=server.pem,verify=0,fork \\`,
+        `# socat OPENSSL-LISTEN:<LOCAL_PORT>,cert=server.pem,cafile=ca.pem,verify=1,fork \\`,
         `#       TCP:${ip}:${portNum}`,
         `#`,
         `# ── Lab configuration reference values ───────────────────────────────────`,
@@ -229,13 +238,13 @@ function generatePayload(
       if (platform === 'Windows') {
         return [
           `# [REFERENCE ONLY — NOT FOR UNAUTHORIZED USE]`,
-          `# Windows PowerShell HTTP reachability probe for http://${ip}:${portNum}/`,
+          `# Windows PowerShell HTTP GET reachability probe for ${formatHttpUrl(ip, portNum)}`,
           `#`,
-          `# Sends a HEAD request and reports HTTP status — no data is posted.`,
+          `# Sends a GET request and reports HTTP status; the response body is discarded.`,
           ``,
-          `$url = "http://${ip}:${portNum}/"`,
+          `$url = "${formatHttpUrl(ip, portNum)}"`,
           `try {`,
-          `    $resp = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 10 -UseBasicParsing`,
+          `    $resp = Invoke-WebRequest -Uri $url -Method Get -TimeoutSec 10 -UseBasicParsing`,
           `    Write-Host "HTTP $($resp.StatusCode) — $url reachable" -ForegroundColor Green`,
           `} catch {`,
           `    Write-Host "FAILED — $url unreachable: $_" -ForegroundColor Red`,
@@ -243,16 +252,17 @@ function generatePayload(
         ].join('\n')
       }
       // Linux / macOS
+      const url = formatHttpUrl(ip, portNum)
       return [
         `# [REFERENCE ONLY — NOT FOR UNAUTHORIZED USE]`,
-        `# curl HTTP reachability probe for http://${ip}:${portNum}/`,
+        `# curl HTTP GET reachability probe for ${url}`,
         `#`,
         `# -s  silent  -o /dev/null  discard body  -w  write status code`,
-        `# No data is posted; this is a GET/HEAD reachability check only.`,
+        `# No data is posted; this is a GET reachability check only.`,
         ``,
-        `curl -s -o /dev/null -w "HTTP %{http_code} — ${ip}:${portNum}\\n" \\`,
+        `curl -s -X GET -o /dev/null -w "HTTP %{http_code} — ${ip}:${portNum}\\n" \\`,
         `     --max-time 10 \\`,
-        `     "http://${ip}:${portNum}/"`,
+        `     "${url}"`,
       ].join('\n')
     }
 
@@ -263,17 +273,6 @@ function generatePayload(
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
-function validateIPv4(ip: string): boolean {
-  return /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(ip)
-}
-
-function validateIPv6(ip: string): boolean {
-  // Covers full, compressed, and loopback IPv6 — including common bracketed forms stripped beforehand
-  return /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^(?:[0-9a-fA-F]{1,4}:)*:[0-9a-fA-F]{1,4}$|^::$/.test(
-    ip,
-  )
-}
-
 function validatePort(port: string): { valid: boolean; message?: string } {
   if (!port.trim()) return { valid: false, message: 'Port is required.' }
   const n = Number(port)
@@ -281,17 +280,6 @@ function validatePort(port: string): { valid: boolean; message?: string } {
     return { valid: false, message: 'Port must be an integer between 1 and 65535.' }
   }
   return { valid: true }
-}
-
-function validateIP(ip: string): { valid: boolean; message?: string } {
-  const trimmed = ip.trim()
-  if (!trimmed) return { valid: false, message: 'IP address is required.' }
-  if (validateIPv4(trimmed) || validateIPv6(trimmed)) return { valid: true }
-  return {
-    valid: false,
-    message:
-      'Enter a valid IPv4 (e.g. 10.0.0.1) or IPv6 (e.g. ::1) address. Hostnames are not accepted.',
-  }
 }
 
 // ─── IoC Sample Data ─────────────────────────────────────────────────────────
