@@ -25,6 +25,7 @@ const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', active: true },
   { label: 'Payload Tools', icon: TerminalSquare, href: '/?operation=base64-encode' },
   { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
+  { label: 'Identify Hash', icon: Fingerprint, href: '/identify-hash' },
   { label: 'Security Lab', icon: FlaskConical, href: '/' },
   { label: 'Recent Activity', icon: Activity, href: '/' },
 ]
@@ -43,7 +44,7 @@ const tools = [
     description: 'Inspect a hash string and review likely algorithms with supporting evidence.',
     icon: Fingerprint,
     accent: 'text-violet-300 bg-violet-400/10 ring-violet-300/20',
-    href: '/?operation=identify-hash',
+    href: '/identify-hash',
     tag: 'Analyzer',
   },
   {
