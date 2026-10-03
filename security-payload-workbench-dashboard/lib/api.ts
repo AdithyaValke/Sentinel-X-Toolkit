@@ -31,6 +31,27 @@ export interface BackendResponse {
   lines?: HashLineAnalysis[];
 }
 
+function isHashCandidate(value: unknown): value is HashCandidate {
+  return Boolean(
+    value && typeof value === 'object' &&
+    'algorithm' in value && typeof value.algorithm === 'string' &&
+    'evidence' in value && typeof value.evidence === 'string' &&
+    'explanation' in value && typeof value.explanation === 'string' &&
+    (!('hashcat_mode' in value) || value.hashcat_mode === null || typeof value.hashcat_mode === 'string'),
+  )
+}
+
+function isHashLineAnalysis(value: unknown): value is HashLineAnalysis {
+  return Boolean(
+    value && typeof value === 'object' &&
+    'input_length' in value && typeof value.input_length === 'number' && Number.isFinite(value.input_length) &&
+    'character_format' in value && typeof value.character_format === 'string' &&
+    'candidates' in value && Array.isArray(value.candidates) && value.candidates.every(isHashCandidate) &&
+    'is_ambiguous' in value && typeof value.is_ambiguous === 'boolean' &&
+    'result' in value && typeof value.result === 'string',
+  )
+}
+
 function getApiBaseUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
   if (!configuredUrl && process.env.NODE_ENV === 'production') {
@@ -39,8 +60,11 @@ function getApiBaseUrl(): string {
   return (configuredUrl || 'http://localhost:8000').replace(/\/+$/, '')
 }
 
-export async function checkBackendHealth(): Promise<boolean> {
+export async function checkBackendHealth(signal?: AbortSignal): Promise<boolean> {
   const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
   const timeout = setTimeout(() => controller.abort(), 5000)
   try {
     const response = await fetch(`${getApiBaseUrl()}/health`, { signal: controller.signal })
@@ -50,6 +74,7 @@ export async function checkBackendHealth(): Promise<boolean> {
   } catch {
     return false
   } finally {
+    signal?.removeEventListener('abort', abort)
     clearTimeout(timeout)
   }
 }
@@ -57,7 +82,8 @@ export async function checkBackendHealth(): Promise<boolean> {
 export async function callBackend(
   operation: string,
   inputText: string,
-  hashAlgo: HashAlgorithm | null = null
+  hashAlgo: HashAlgorithm | null = null,
+  signal?: AbortSignal
 ): Promise<BackendResponse> {
   const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}/api/process`;
@@ -70,7 +96,10 @@ export async function callBackend(
   }
 
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10000);
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -90,7 +119,14 @@ export async function callBackend(
       typeof data.success !== 'boolean' ||
       !('result' in data) ||
       typeof data.result !== 'string' ||
-      ('error' in data && data.error !== null && typeof data.error !== 'string')
+      ('error' in data && data.error !== null && typeof data.error !== 'string') ||
+      ('input_length' in data && (typeof data.input_length !== 'number' || !Number.isFinite(data.input_length))) ||
+      ('character_format' in data && typeof data.character_format !== 'string') ||
+      ('candidates' in data && (!Array.isArray(data.candidates) || !data.candidates.every(isHashCandidate))) ||
+      ('is_ambiguous' in data && typeof data.is_ambiguous !== 'boolean') ||
+      ('warning' in data && data.warning !== null && typeof data.warning !== 'string') ||
+      ('recommendation' in data && data.recommendation !== null && typeof data.recommendation !== 'string') ||
+      ('lines' in data && (!Array.isArray(data.lines) || !data.lines.every(isHashLineAnalysis)))
     ) {
       throw new Error('The API returned an invalid response.');
     }
@@ -112,6 +148,7 @@ export async function callBackend(
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
+      if (signal?.aborted) throw error
       throw new Error('The request timed out. Check that the Flask API is running and reachable.');
     }
     if (error instanceof TypeError) {
@@ -119,6 +156,7 @@ export async function callBackend(
     }
     throw error;
   } finally {
-    window.clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort)
+    clearTimeout(timeout);
   }
 }

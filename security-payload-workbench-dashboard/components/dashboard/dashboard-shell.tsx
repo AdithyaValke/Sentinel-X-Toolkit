@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import {
   Activity,
   ArrowUpRight,
@@ -20,9 +22,10 @@ import {
   X,
 } from 'lucide-react'
 import { checkBackendHealth } from '@/lib/api'
+import { LatestRequest } from '@/lib/latest-request'
 
 const navigation = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', active: true },
+  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
   { label: 'Payload Tools', icon: TerminalSquare, href: '/payload-tools' },
   { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
   { label: 'Identify Hash', icon: Fingerprint, href: '/identify-hash' },
@@ -73,9 +76,7 @@ const activity = [
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link href="/dashboard" className="flex items-center gap-3" aria-label="Payload Workbench dashboard">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-cyan-400 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.2)]">
-        <ShieldCheck className="size-5" />
-      </span>
+      <Image src="/icon.svg" alt="" width={36} height={36} className="size-9 shrink-0 rounded-xl" priority />
       {!compact && (
         <span className="leading-none">
           <span className="block font-mono text-sm font-bold tracking-tight text-slate-100">Payload</span>
@@ -90,14 +91,16 @@ export function DashboardShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+  const latestHealth = useRef(new LatestRequest())
+  const pathname = usePathname()
 
   useEffect(() => {
-    let active = true
-    checkBackendHealth().then((online) => {
-      if (active) setApiStatus(online ? 'online' : 'offline')
+    const request = latestHealth.current.begin()
+    checkBackendHealth(request.signal).then((online) => {
+      if (latestHealth.current.isCurrent(request.id)) setApiStatus(online ? 'online' : 'offline')
     })
     return () => {
-      active = false
+      latestHealth.current.cancel()
     }
   }, [])
 
@@ -111,17 +114,18 @@ export function DashboardShell() {
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-2`}>
             <Brand compact={collapsed} />
             {!collapsed && <button className="hidden min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 lg:flex" onClick={() => setCollapsed(true)} aria-label="Collapse sidebar"><PanelLeftClose className="size-4" /></button>}
-            <button className="rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close sidebar"><X className="size-4" /></button>
+            <button className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close sidebar"><X className="size-4" /></button>
           </div>
-          {collapsed && <button className="mx-auto mt-6 hidden rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 lg:block" onClick={() => setCollapsed(false)} aria-label="Expand sidebar"><PanelLeftOpen className="size-4" /></button>}
+          {collapsed && <button className="mx-auto mt-6 hidden min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 lg:flex" onClick={() => setCollapsed(false)} aria-label="Expand sidebar"><PanelLeftOpen className="size-4" /></button>}
           <nav className="mt-10 flex flex-1 flex-col gap-1" aria-label="Main navigation">
             {!collapsed && <p className="mb-3 px-3 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-600">Workspace</p>}
-            {navigation.map(({ label, icon: Icon, href, active }) => (
-              <Link key={label} href={href} onClick={() => setMobileOpen(false)} title={collapsed ? label : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${active ? 'bg-cyan-400/[0.11] text-cyan-200 shadow-[inset_2px_0_0_#22d3ee]' : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-200'} ${collapsed ? 'justify-center' : ''}`}>
+            {navigation.map(({ label, icon: Icon, href }) => {
+              const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`))
+              return <Link key={label} href={href} onClick={() => setMobileOpen(false)} title={collapsed ? label : undefined} aria-current={active ? 'page' : undefined} className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${active ? 'bg-cyan-400/[0.11] text-cyan-200 shadow-[inset_2px_0_0_#22d3ee]' : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-200'} ${collapsed ? 'justify-center' : ''}`}>
                 <Icon className={`size-[18px] shrink-0 ${active ? 'text-cyan-300' : 'text-slate-600 group-hover:text-slate-300'}`} />
                 {!collapsed && <span>{label}</span>}
               </Link>
-            ))}
+            })}
           </nav>
           <div className="border-t border-white/[0.07] pt-4">
             {!collapsed && <div className="mt-5 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${apiStatus === 'online' ? 'bg-emerald-400' : apiStatus === 'offline' ? 'bg-rose-400' : 'bg-amber-400'}`} /><span className={`font-mono text-[10px] uppercase tracking-wider ${apiStatus === 'online' ? 'text-emerald-300' : apiStatus === 'offline' ? 'text-rose-300' : 'text-amber-300'}`}>{apiStatusLabel}</span></div><p className="mt-2 text-xs leading-5 text-slate-600">Health check: Flask /health endpoint.</p></div>}
@@ -130,8 +134,8 @@ export function DashboardShell() {
 
         <section className="min-w-0 flex-1">
           <header className="flex h-[76px] items-center justify-between border-b border-white/[0.07] px-5 sm:px-8 lg:px-10">
-            <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-slate-400 hover:bg-white/5 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu className="size-5" /></button><div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-600">Workspace / Overview</p><h1 className="mt-1 text-sm font-semibold text-slate-200 sm:text-base">Dashboard</h1></div></div>
-            <div className="flex items-center gap-3 sm:gap-5"><div className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 sm:flex"><Search className="size-4 text-slate-600" /><span className="w-36 text-xs text-slate-600">Search tools...</span><kbd className="flex items-center gap-0.5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-slate-600"><Command className="size-2.5" />K</kbd></div><div className="flex items-center gap-2 border-l border-white/[0.08] pl-3 sm:pl-5"><div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300 to-violet-400 text-xs font-bold text-slate-950">PW</div><div className="hidden sm:block"><p className="text-xs font-medium text-slate-300">Developer</p><p className="font-mono text-[10px] text-slate-600">local workspace</p></div></div></div>
+            <div className="flex items-center gap-3"><button className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-400 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu className="size-5" /></button><div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-600">Workspace / Overview</p><h1 className="mt-1 text-sm font-semibold text-slate-200 sm:text-base">Dashboard</h1></div></div>
+            <div className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 sm:flex"><Search className="size-4 text-slate-600" /><span className="w-36 text-xs text-slate-600">Search tools...</span><kbd className="flex items-center gap-0.5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-slate-600"><Command className="size-2.5" />K</kbd></div>
           </header>
 
           <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">

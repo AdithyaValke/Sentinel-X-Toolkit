@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Check,
   Clipboard,
@@ -8,11 +8,10 @@ import {
   Hash,
   Link2,
   LockKeyhole,
-  Moon,
   ShieldCheck,
-  Sun,
 } from 'lucide-react'
 import { callBackend } from '@/lib/api'
+import { LatestRequest } from '@/lib/latest-request'
 import { PAYLOAD_OPERATION_MAP, type PayloadOperation } from '@/lib/payload-operations'
 
 const operations: { id: PayloadOperation; label: string; icon: typeof LockKeyhole }[] = [
@@ -31,7 +30,7 @@ export function PayloadTools() {
   const [loading, setLoading] = useState(false)
   const [operation, setOperation] = useState<PayloadOperation>('base64-encode')
   const [copied, setCopied] = useState(false)
-  const [darkMode, setDarkMode] = useState(true)
+  const latestRequest = useRef(new LatestRequest())
 
   async function executeOperation(textToProcess: string, op: PayloadOperation) {
     if (!textToProcess) {
@@ -41,10 +40,12 @@ export function PayloadTools() {
       return
     }
 
+    const request = latestRequest.current.begin()
     setLoading(true)
     setError('')
     try {
-      const response = await callBackend(PAYLOAD_OPERATION_MAP[op], textToProcess)
+      const response = await callBackend(PAYLOAD_OPERATION_MAP[op], textToProcess, null, request.signal)
+      if (!latestRequest.current.isCurrent(request.id)) return
       if (response.success) {
         setOutput(response.result)
       } else {
@@ -52,10 +53,11 @@ export function PayloadTools() {
         setError(response.error ?? 'The operation failed.')
       }
     } catch (e) {
+      if (!latestRequest.current.isCurrent(request.id)) return
       setOutput('')
       setError(e instanceof Error ? e.message : 'The operation failed.')
     } finally {
-      setLoading(false)
+      if (latestRequest.current.isCurrent(request.id)) setLoading(false)
     }
   }
 
@@ -77,6 +79,7 @@ export function PayloadTools() {
     return () => {
       active = false
       clearTimeout(handler)
+      latestRequest.current.cancel()
     }
   }, [input, operation])
 
@@ -92,10 +95,12 @@ export function PayloadTools() {
   }
 
   function clearAll() {
+    latestRequest.current.cancel()
     setInput('')
     setOutput('')
     setError('')
     setCopied(false)
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -106,7 +111,7 @@ export function PayloadTools() {
   }, [])
 
   return (
-    <main className={darkMode ? 'dark' : 'light'}>
+    <main className="min-h-screen bg-background text-foreground">
       <div className="workbench-shell">
         <header className="workbench-header">
           <div>
@@ -124,15 +129,6 @@ export function PayloadTools() {
             <div className="processing-pill">
               <span /> Flask API operations
             </div>
-            <button
-              type="button"
-              className="theme-toggle"
-              onClick={() => setDarkMode((value) => !value)}
-              aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
-            >
-              {darkMode ? <Sun /> : <Moon />}
-              <span>{darkMode ? 'Light' : 'Dark'}</span>
-            </button>
           </div>
         </header>
 
@@ -142,7 +138,7 @@ export function PayloadTools() {
             <textarea
               id="input-buffer"
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setInput(event.target.value) }}
               placeholder="Paste text or encoded data here..."
               className="buffer-textarea"
               spellCheck={false}
@@ -159,7 +155,7 @@ export function PayloadTools() {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setOperation(id)}
+                  onClick={() => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setOperation(id) }}
                   className={`operation-button ${
                     operation === id ? 'operation-button-active' : ''
                   }`}

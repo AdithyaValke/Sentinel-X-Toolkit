@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Check, Clipboard, Eraser, Hash, Loader2, ShieldCheck } from 'lucide-react'
 import { callBackend, type HashAlgorithm } from '@/lib/api'
+import { LatestRequest } from '@/lib/latest-request'
 
 export function HashConverter() {
   const [input, setInput] = useState('')
@@ -12,9 +13,27 @@ export function HashConverter() {
   const [loading, setLoading] = useState(false)
   const [selectedHash, setSelectedHash] = useState<HashAlgorithm>('SHA-256')
   const [copied, setCopied] = useState(false)
+  const latestRequest = useRef(new LatestRequest())
+
+  function updateInput(value: string) {
+    latestRequest.current.cancel()
+    setInput(value)
+    setOutput('')
+    setError('')
+    setLoading(false)
+  }
+
+  function updateAlgorithm(value: HashAlgorithm) {
+    latestRequest.current.cancel()
+    setSelectedHash(value)
+    setOutput('')
+    setError('')
+    setLoading(false)
+  }
 
   useEffect(() => {
     if (!input) {
+      latestRequest.current.cancel()
       setOutput('')
       setError('')
       setLoading(false)
@@ -23,9 +42,11 @@ export function HashConverter() {
 
     setLoading(true)
     const handler = window.setTimeout(async () => {
+      const request = latestRequest.current.begin()
       setError('')
       try {
-        const response = await callBackend('hash', input, selectedHash)
+        const response = await callBackend('hash', input, selectedHash, request.signal)
+        if (!latestRequest.current.isCurrent(request.id)) return
         if (response.success) {
           setOutput(response.result)
         } else {
@@ -33,14 +54,15 @@ export function HashConverter() {
           setError(response.error ?? 'The operation failed.')
         }
       } catch (requestError) {
+        if (!latestRequest.current.isCurrent(request.id)) return
         setOutput('')
         setError(requestError instanceof Error ? requestError.message : 'The operation failed.')
       } finally {
-        setLoading(false)
+        if (latestRequest.current.isCurrent(request.id)) setLoading(false)
       }
     }, 300)
 
-    return () => window.clearTimeout(handler)
+    return () => { window.clearTimeout(handler); latestRequest.current.cancel() }
   }, [input, selectedHash])
 
   async function copyResult() {
@@ -55,14 +77,16 @@ export function HashConverter() {
   }
 
   function clearAll() {
+    latestRequest.current.cancel()
     setInput('')
     setOutput('')
     setError('')
     setCopied(false)
+    setLoading(false)
   }
 
   return (
-    <main className="dark min-h-screen bg-[#080b12] text-slate-100">
+    <main className="min-h-screen bg-[#080b12] text-slate-100">
       <div className="workbench-shell">
         <header className="workbench-header">
           <div>
@@ -76,13 +100,13 @@ export function HashConverter() {
         <section className="workspace" aria-label="Hash converter workspace">
           <article className="buffer-card">
             <div className="buffer-heading"><h2><span>01</span>Input Buffer</h2><small>Live</small></div>
-            <textarea id="hash-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Paste text to hash here..." className="buffer-textarea" spellCheck={false} aria-label="Hash input buffer" />
+            <textarea id="hash-input" value={input} onChange={(event) => updateInput(event.target.value)} placeholder="Paste text to hash here..." className="buffer-textarea" spellCheck={false} aria-label="Hash input buffer" />
             <div className="buffer-meta"><span>{input.length} characters</span><span>UTF-8</span></div>
           </article>
 
           <div className="operations" aria-label="Hash converter controls">
             <div className="section-label">Hash algorithm</div>
-            <label className="hash-tile operation-button-active" htmlFor="hash-algorithm"><Hash /><select id="hash-algorithm" value={selectedHash} onChange={(event) => setSelectedHash(event.target.value as HashAlgorithm)} className="hash-select" aria-label="Hash algorithm selection"><option value="MD5">MD5</option><option value="SHA-256">SHA-256</option><option value="SHA-512">SHA-512</option></select></label>
+            <label className="hash-tile operation-button-active" htmlFor="hash-algorithm"><Hash /><select id="hash-algorithm" value={selectedHash} onChange={(event) => updateAlgorithm(event.target.value as HashAlgorithm)} className="hash-select" aria-label="Hash algorithm selection"><option value="MD5">MD5</option><option value="SHA-256">SHA-256</option><option value="SHA-512">SHA-512</option></select></label>
           </div>
 
           <article className="buffer-card">

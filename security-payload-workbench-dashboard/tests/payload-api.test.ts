@@ -61,6 +61,40 @@ test('turns backend and network failures into useful errors', async () => {
   }
 })
 
+test('preserves caller aborts as cancellations instead of reporting timeouts', async () => {
+  const originalFetch = globalThis.fetch
+  installBrowserTimerShim()
+  const controller = new AbortController()
+  try {
+    globalThis.fetch = async (_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+    })
+    const request = callBackend('base64_encode', 'superseded input', null, controller.signal)
+    controller.abort()
+    await assert.rejects(request, (error: unknown) => error instanceof DOMException && error.name === 'AbortError')
+  } finally {
+    globalThis.fetch = originalFetch
+    Reflect.deleteProperty(globalThis, 'window')
+  }
+})
+
+test('rejects malformed optional hash analysis fields before rendering', async () => {
+  const originalFetch = globalThis.fetch
+  installBrowserTimerShim()
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      success: true,
+      result: 'candidate list',
+      error: null,
+      candidates: [{ algorithm: 7, evidence: null, explanation: [] }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } })
+    await assert.rejects(callBackend('identify_hash', 'abc'), /invalid response/i)
+  } finally {
+    globalThis.fetch = originalFetch
+    Reflect.deleteProperty(globalThis, 'window')
+  }
+})
+
 test('health check reports only an explicit successful backend status', async () => {
   const originalFetch = globalThis.fetch
   try {
