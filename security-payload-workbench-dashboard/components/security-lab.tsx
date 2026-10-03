@@ -677,7 +677,7 @@ export function SecurityLab() {
                     with live validation.
                   </p>
                   <Link
-                    href="/?operation=base64-encode"
+                    href="/payload-tools"
                     className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-400 hover:text-slate-950"
                   >
                     Open Workbench <ArrowUpRight className="size-3.5" />
@@ -1302,8 +1302,8 @@ export function SecurityLab() {
             <Link href="/identify-hash" className="transition hover:text-cyan-300">
               Identify Hash
             </Link>
-            <Link href="/?operation=base64-encode" className="transition hover:text-cyan-300">
-              Workbench
+            <Link href="/payload-tools" className="transition hover:text-cyan-300">
+              Payload Tools
             </Link>
           </div>
         </footer>

@@ -4,7 +4,7 @@ import { SecurityLab } from '@/components/security-lab'
 export const metadata: Metadata = {
   title: 'Security Lab | Payload Workbench',
   description:
-    'Educational reference and defensive security analysis workspace for reverse shell mechanics, IoC sanitization, and threat modeling.',
+    'Defensive security workspace for IoC sanitization, TCP and HTTP connectivity references, and listener or relay templates.',
 }
 
 export default function SecurityLabPage() {
