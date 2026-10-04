@@ -279,8 +279,10 @@
   main { @apply min-h-screen transition-colors duration-300; }
   main.dark { @apply bg-slate-950 text-slate-100; }
   main.light { @apply bg-slate-50 text-slate-900; }
-  .workbench-shell { @apply mx-auto flex min-h-screen w-full max-w-7xl flex-col overflow-x-hidden px-4 py-4 sm:px-8 sm:py-5 lg:min-h-[calc(100vh-76px)] lg:px-10 lg:py-6; }
-  .workbench-header { @apply mb-5 flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between; }
+  .workbench-shell { @apply relative mx-auto flex min-h-screen w-full max-w-7xl flex-col overflow-x-hidden px-4 py-4 sm:px-8 sm:py-5 lg:min-h-[calc(100vh-76px)] lg:px-10 lg:py-7; }
+  .workbench-shell::before { content: ''; @apply pointer-events-none absolute inset-0 opacity-40; background-image: linear-gradient(to right, rgb(34 211 238 / 0.035) 1px, transparent 1px), linear-gradient(to bottom, rgb(34 211 238 / 0.035) 1px, transparent 1px); background-size: 2.5rem 2.5rem; mask-image: linear-gradient(to bottom, black, transparent 78%); }
+  .workbench-header, .workspace, .workbench-footer { @apply relative; }
+  .workbench-header { @apply mb-6 flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between; }
   .workbench-header .theme-toggle { @apply min-h-11 self-start sm:self-auto; }
   .dark .workbench-header, .dark .workbench-footer { @apply border-slate-800; }
   .light .workbench-header, .light .workbench-footer { @apply border-slate-200; }
@@ -296,11 +298,13 @@
   .dark .theme-toggle { @apply border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-400/60 hover:text-cyan-300; }
   .light .theme-toggle { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:text-cyan-700; }
   .theme-toggle svg { @apply size-3.5; }
-  .workspace { @apply grid flex-1 gap-4 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_250px_minmax(0,1fr)]; }
-  .operations { @apply flex flex-col justify-center; }
-  .section-label { @apply mb-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500; }
-  .operation-grid { @apply grid grid-cols-2 gap-2; }
-  .operation-button { @apply flex min-h-16 flex-col items-start justify-center gap-1.5 rounded-xl border px-3 text-left font-mono text-[10px] font-medium transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500; }
+  .workspace { @apply grid flex-1 gap-4 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_236px_minmax(0,1fr)] xl:gap-6; }
+  .operations { @apply flex flex-col justify-center rounded-2xl border p-3 lg:border-transparent lg:bg-transparent lg:p-0; }
+  .dark .operations { @apply border-slate-800/80 bg-slate-950/35; }
+  .light .operations { @apply border-slate-200 bg-white/70; }
+  .section-label { @apply mb-3 px-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500; }
+  .operation-grid { @apply grid grid-cols-2 gap-2.5; }
+  .operation-button { @apply flex min-h-16 flex-col items-start justify-center gap-1.5 rounded-xl border px-3 text-left font-mono text-[10px] font-medium transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background; }
   .dark .operation-button, .dark .hash-tile { @apply border-slate-800 bg-slate-900/80 text-slate-400 hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:text-cyan-200; }
   .light .operation-button, .light .hash-tile { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:bg-cyan-50 hover:text-cyan-700; }
   .operation-button svg, .hash-tile svg { @apply size-4; }
@@ -310,7 +314,18 @@
   .hash-label { @apply mt-4; }
   .hash-tile { @apply flex items-center gap-2 rounded-xl border px-3; }
   .hash-select { @apply min-h-11 w-full bg-transparent font-mono text-[11px] outline-none; }
-  .buffer-card { @apply flex min-h-[300px] flex-col rounded-2xl border p-4 shadow-xl sm:p-5 lg:min-h-0 lg:h-full; }
+  .buffer-card { @apply flex min-h-[280px] flex-col rounded-2xl border p-4 shadow-xl sm:min-h-[320px] sm:p-5 lg:min-h-0 lg:h-full; }
+  @media (max-width: 1023px) {
+    .workspace { @apply flex flex-col; }
+    .operations { @apply order-2; }
+    .workspace > .buffer-card:last-child { @apply order-3; }
+    .workspace > .buffer-card:first-child { @apply order-1; }
+  }
+  @media (max-width: 480px) {
+    .workbench-shell { @apply px-3 py-4; }
+    .operation-button { @apply min-h-14 px-2.5; }
+    .buffer-card { @apply min-h-[250px] p-3.5; }
+  }
   .dark .buffer-card { @apply border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 shadow-black/30; }
   .light .buffer-card { @apply border-slate-200 bg-white shadow-slate-200/70; }
   .buffer-heading { @apply mb-3 flex items-center justify-between; }

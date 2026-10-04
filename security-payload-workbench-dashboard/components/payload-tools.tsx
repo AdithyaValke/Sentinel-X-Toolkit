@@ -155,6 +155,7 @@ export function PayloadTools() {
                 <button
                   key={id}
                   type="button"
+                  aria-pressed={operation === id}
                   onClick={() => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setOperation(id) }}
                   className={`operation-button ${
                     operation === id ? 'operation-button-active' : ''
