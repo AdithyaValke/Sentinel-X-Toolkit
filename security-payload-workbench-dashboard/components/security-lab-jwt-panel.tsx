@@ -140,8 +140,7 @@ export function SecurityLabJwtPanel() {
     </header>
 
     <div className="grid items-stretch gap-5 xl:grid-cols-2">
-      <div className="min-h-[24rem] xl:relative">
-        <div ref={rightScrollRef} tabIndex={0} role="region" aria-label="Decoded token and analysis" className="space-y-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 [scrollbar-width:thin] [scrollbar-color:rgb(34_211_238_/_0.42)_transparent] [&::-webkit-scrollbar]:w-[7px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-400/40 [html.light_&]:[scrollbar-color:rgb(8_145_178_/_0.5)_transparent] [html.light_&::-webkit-scrollbar-thumb]:bg-cyan-700/50 xl:absolute xl:inset-0 xl:overflow-y-auto xl:pr-1">
+      <div className="min-w-0 space-y-5">
         <section className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-4 sm:p-5" aria-labelledby="jwt-token-heading">
           <div className="mb-3 flex items-start justify-between gap-3"><div><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">Input</p><h3 id="jwt-token-heading" className="mt-1 text-sm font-semibold text-white">Token</h3></div><span className="font-mono text-[10px] text-slate-500">{inputLength.toLocaleString()} characters</span></div>
           <label htmlFor="jwt-token-input" className="sr-only">Paste JWT token</label><textarea id="jwt-token-input" value={token} onChange={(event) => updateToken(event.target.value)} placeholder="Paste a JWT here..." spellCheck={false} className="min-h-36 w-full resize-y rounded-xl border border-white/10 bg-[#060810] p-3 font-mono text-xs leading-5 text-slate-200 placeholder:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 sm:min-h-44" />
@@ -159,10 +158,10 @@ export function SecurityLabJwtPanel() {
             <p role="status" className="mt-2 text-xs leading-5 text-slate-400">{visibleVerificationExplanation}</p>
           </div>
         </details>}
-        </div>
       </div>
 
-      <div className="space-y-5">
+      <div className="min-h-0 min-w-0 xl:relative">
+        <div ref={rightScrollRef} tabIndex={0} role="region" aria-label="Decoded token and analysis" className="min-w-0 space-y-5 [overflow-wrap:anywhere] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 [scrollbar-width:thin] [scrollbar-color:rgb(34_211_238_/_0.42)_transparent] [&::-webkit-scrollbar]:w-[7px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-400/40 [html.light_&]:[scrollbar-color:rgb(8_145_178_/_0.5)_transparent] [html.light_&::-webkit-scrollbar-thumb]:bg-cyan-700/50 xl:absolute xl:inset-0 xl:overflow-x-hidden xl:overflow-y-auto xl:pr-1">
         {!token.trim() ? <section className="rounded-2xl border border-dashed border-white/15 bg-[#0d121c]/70 p-6 sm:p-8"><div className="flex size-11 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20"><KeyRound className="size-5" /></div><h3 className="mt-4 text-sm font-semibold text-white">Inspect a JSON Web Token</h3><p className="mt-2 text-xs leading-6 text-slate-400">A JWT has three dot-separated parts: a Base64URL header, a Base64URL payload, and a signature. The first two parts are readable data, not encryption. Load the harmless signed sample to explore the analyzer.</p></section>
           : !analysis ? null : <>
             <section className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-4 sm:p-5" aria-labelledby="jwt-decoded-heading"><div className="mb-4"><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-400">Decoded Locally</p><h3 id="jwt-decoded-heading" className="mt-1 text-sm font-semibold text-white">Decoded</h3></div><div className="space-y-4">
@@ -171,6 +170,7 @@ export function SecurityLabJwtPanel() {
             </div><ClaimsTable analysis={analysis} now={now} /></section>
             <section className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-4 sm:p-5" aria-labelledby="jwt-analysis-heading"><div className="mb-4 flex items-start justify-between gap-3"><div><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-400">Defensive Review</p><h3 id="jwt-analysis-heading" className="mt-1 text-sm font-semibold text-white">Analysis</h3></div><span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 font-mono text-[10px] text-slate-400">{analysis.findings.length} findings</span></div>{analysis.findings.length === 0 && <p className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-emerald-200">No issues found by these checks. This is not a security guarantee.</p>}<div className="space-y-3">{findingsBySeverity.map(({ severity, items }) => <FindingGroup key={severity} severity={severity} findings={items} />)}</div><p className="mt-3 text-[10px] leading-5 text-slate-500">These rule-based checks are educational signals. Validate issuer, audience, expiry, algorithm, and key policy in the application that accepts the token.</p></section>
           </>}
+        </div>
       </div>
     </div>
     <div aria-live="polite" className="sr-only">{parseResult.ok && token.trim() ? 'Token decoded' : token.trim() && !parseResult.ok ? parseResult.error : ''}</div>
