@@ -233,7 +233,7 @@ function BufferCard({
           <span>{icon}</span>
           {title}
         </h2>
-        <small>{status}</small>
+        <small aria-live="polite">{status}</small>
       </div>
       {children}
     </article>
