@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -479,34 +478,14 @@ export function SecurityLab() {
       <Suspense fallback={null}>
         <SecurityLabSearchTabSync onTabChange={setActiveTab} />
       </Suspense>
-      {/* ── Sticky header ─────────────────────────────────────────────────── */}
-      <header className="sticky top-28 z-30 border-b border-white/[0.07] bg-[#0b0f18]/80 backdrop-blur-md lg:top-[76px]">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-300/40 hover:bg-white/[0.06] hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-              aria-label="Back to dashboard"
-            >
-              <ArrowLeft className="size-4" />
-              <span>Back to Dashboard</span>
-            </Link>
-            <div className="hidden h-5 w-px bg-white/10 sm:block" />
-            <span className="hidden font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:block">
-              Workspace / Security Lab
-            </span>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-emerald-300">
-            <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
+      <div className="mx-auto max-w-7xl px-4 pt-3 pb-6 sm:px-6 sm:pt-3 sm:pb-7 lg:px-8 lg:pt-4 lg:pb-8">
+        {/* ── Hero ──────────────────────────────────────────────────────────── */}
+        {activeTab === 'overview' ? <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#101928] via-[#0d1422] to-[#0a0e17] p-6 sm:p-8 lg:p-10">
+          <div className="pointer-events-none absolute -right-24 -top-32 size-80 rounded-full bg-emerald-400/[0.07] blur-3xl" />
+          <span title="Isolated lab: no live commands or network connections" aria-label="Isolated lab: no live commands or network connections" className="absolute right-6 top-6 z-10 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-emerald-300 sm:right-8 sm:top-8">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
             Isolated Lab
           </span>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
-        {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#101928] via-[#0d1422] to-[#0a0e17] p-6 sm:p-8 lg:p-10">
-          <div className="pointer-events-none absolute -right-24 -top-32 size-80 rounded-full bg-emerald-400/[0.07] blur-3xl" />
           <div className="relative max-w-3xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 font-mono text-xs font-semibold text-emerald-300">
               <FlaskConical className="size-3.5" />
@@ -533,12 +512,12 @@ export function SecurityLab() {
               </span>
             </div>
           </div>
-        </section>
+        </section> : <h1 className="sr-only">Security Lab</h1>}
 
         {/* ── Tab Navigation ────────────────────────────────────────────────── */}
         <nav
           aria-label="Security Lab navigation tabs"
-          className="mt-6 flex flex-wrap gap-2 border-b border-white/[0.08] pb-4"
+          className={`${activeTab === 'overview' ? 'mt-4' : 'mt-0'} flex flex-wrap gap-2 border-b border-white/[0.08] pb-3`}
         >
           {(
             [
@@ -563,6 +542,12 @@ export function SecurityLab() {
               {label}
             </button>
           ))}
+          {activeTab !== 'overview' && (
+            <span title="Isolated lab: no live commands or network connections" aria-label="Isolated lab: no live commands or network connections" className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-emerald-300">
+              <span className="size-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
+              Isolated Lab
+            </span>
+          )}
         </nav>
 
         {/* ════════════════════════════════════════════════════════════════════
@@ -697,7 +682,7 @@ export function SecurityLab() {
             TAB 2: IOC DEFANGER & SANITIZER
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'defanger' && (
-          <div className="mt-8 space-y-6">
+          <div className="mt-4 space-y-6">
             <header>
               <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
                 <Shield className="size-3.5" />
@@ -864,7 +849,7 @@ export function SecurityLab() {
             TAB 3: PAYLOAD GENERATOR
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'payload-generator' && (
-          <div className="mt-8 space-y-6">
+          <div className="mt-4 space-y-6">
             {/* Header */}
             <header>
               <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-400">

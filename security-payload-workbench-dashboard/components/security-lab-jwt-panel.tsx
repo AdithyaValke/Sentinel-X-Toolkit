@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle, Check, Clipboard, Clock3, Copy, Info, KeyRound, LoaderCircle,
   LockKeyhole, ShieldAlert, ShieldCheck, TriangleAlert,
 } from 'lucide-react'
-import { analyzeJwt, createSampleJwt, formatJsonForDisplay, verifyHmac, type JwtAnalysis, type JwtFinding, type JwtSeverity } from '@/lib/jwt-utils.ts'
+import { analyzeJwt, createSampleJwt, formatJwtRelativeTime, formatJsonForDisplay, verifyHmac, type JwtAnalysis, type JwtFinding, type JwtSeverity } from '@/lib/jwt-utils.ts'
 
 function ColoredJson({ value }: { value: unknown }) {
   const text = formatJsonForDisplay(value)
@@ -64,18 +64,8 @@ function ClaimsTable({ analysis, now }: { analysis: JwtAnalysis; now: number }) 
     const time = timestampByClaim.get(claim)
     const value = analysis.payload[claim]
     const invalid = value !== undefined && !time
-    return <tr key={claim} className="border-t border-white/[0.06]"><th className="px-3 py-2 font-mono font-medium text-cyan-200">{claim}</th><td className="px-3 py-2 text-slate-300">{time?.utc ?? (invalid ? 'Invalid timestamp' : 'Not present')}</td><td className="px-3 py-2 text-slate-300">{time?.local ?? '—'}</td><td className="px-3 py-2 text-slate-400">{time ? relativeTimeAt(claim, time.seconds, now) : '—'}</td></tr>
+    return <tr key={claim} className="border-t border-white/[0.06]"><th className="px-3 py-2 font-mono font-medium text-cyan-200">{claim}</th><td className="px-3 py-2 text-slate-300">{time?.utc ?? (invalid ? 'Invalid timestamp' : 'Not present')}</td><td className="px-3 py-2 text-slate-300">{time?.local ?? '—'}</td><td className="px-3 py-2 text-slate-400">{time ? formatJwtRelativeTime(claim, time.seconds, now) : '—'}</td></tr>
   })}</tbody></table></div></section>
-}
-
-function relativeTimeAt(claim: 'exp' | 'nbf' | 'iat', seconds: number, nowMs: number) {
-  const delta = seconds - nowMs / 1000
-  const amount = Math.abs(delta)
-  const [value, unit] = amount < 60 ? [Math.round(amount), 'second'] : amount < 3600 ? [Math.round(amount / 60), 'minute'] : amount < 86400 ? [Math.round(amount / 3600), 'hour'] : [Math.round(amount / 86400), 'day']
-  const amountText = `${value} ${value === 1 ? unit : `${unit}s`}`
-  if (claim === 'exp') return delta >= 0 ? `expires in ${amountText}` : `expired ${amountText} ago`
-  if (claim === 'nbf') return delta >= 0 ? `active in ${amountText}` : `active since ${amountText} ago`
-  return delta >= 0 ? `issued in ${amountText}` : `issued ${amountText} ago`
 }
 
 export function SecurityLabJwtPanel() {
@@ -88,6 +78,7 @@ export function SecurityLabJwtPanel() {
   const [verifying, setVerifying] = useState(false)
   const [sampleLoading, setSampleLoading] = useState(false)
   const [actionError, setActionError] = useState('')
+  const rightScrollRef = useRef<HTMLDivElement>(null)
   const parseResult = useMemo(() => analyzeJwt(token, now), [token, now])
   const analysis = parseResult.ok ? parseResult.analysis : null
 
@@ -95,6 +86,10 @@ export function SecurityLabJwtPanel() {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    rightScrollRef.current?.scrollTo({ top: 0 })
+  }, [token])
 
   async function copyText(value: string, key: string) {
     try {
@@ -107,7 +102,7 @@ export function SecurityLabJwtPanel() {
   }
 
   function updateToken(value: string) {
-    setToken(value); setVerification({ status: 'unchecked', explanation: 'Signature has not been checked.' }); setActionError('')
+    setNow(Date.now()); setToken(value); setVerification({ status: 'unchecked', explanation: 'Signature has not been checked.' }); setActionError('')
   }
 
   async function loadSample() {
@@ -144,8 +139,9 @@ export function SecurityLabJwtPanel() {
       <p className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-xs leading-5 text-emerald-100"><LockKeyhole className="size-4 shrink-0 text-emerald-300" />Decoded locally in your browser. Tokens and secrets are never sent to a server.</p>
     </header>
 
-    <div className="grid items-start gap-5 xl:grid-cols-2">
-      <div className="space-y-5">
+    <div className="grid items-stretch gap-5 xl:grid-cols-2">
+      <div className="min-h-[24rem] xl:relative">
+        <div ref={rightScrollRef} tabIndex={0} role="region" aria-label="Decoded token and analysis" className="space-y-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 [scrollbar-width:thin] [scrollbar-color:rgb(34_211_238_/_0.42)_transparent] [&::-webkit-scrollbar]:w-[7px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-400/40 [html.light_&]:[scrollbar-color:rgb(8_145_178_/_0.5)_transparent] [html.light_&::-webkit-scrollbar-thumb]:bg-cyan-700/50 xl:absolute xl:inset-0 xl:overflow-y-auto xl:pr-1">
         <section className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-4 sm:p-5" aria-labelledby="jwt-token-heading">
           <div className="mb-3 flex items-start justify-between gap-3"><div><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">Input</p><h3 id="jwt-token-heading" className="mt-1 text-sm font-semibold text-white">Token</h3></div><span className="font-mono text-[10px] text-slate-500">{inputLength.toLocaleString()} characters</span></div>
           <label htmlFor="jwt-token-input" className="sr-only">Paste JWT token</label><textarea id="jwt-token-input" value={token} onChange={(event) => updateToken(event.target.value)} placeholder="Paste a JWT here..." spellCheck={false} className="min-h-36 w-full resize-y rounded-xl border border-white/10 bg-[#060810] p-3 font-mono text-xs leading-5 text-slate-200 placeholder:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 sm:min-h-44" />
@@ -163,6 +159,7 @@ export function SecurityLabJwtPanel() {
             <p role="status" className="mt-2 text-xs leading-5 text-slate-400">{visibleVerificationExplanation}</p>
           </div>
         </details>}
+        </div>
       </div>
 
       <div className="space-y-5">

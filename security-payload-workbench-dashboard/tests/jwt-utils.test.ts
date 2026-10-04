@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { analyzeJwt, createSampleJwt, formatJsonForDisplay, verifyHmac } from '../lib/jwt-utils.ts'
+import { analyzeJwt, CLOCK_SKEW_TOLERANCE_SECONDS, createSampleJwt, formatJsonForDisplay, formatJwtRelativeTime, verifyHmac } from '../lib/jwt-utils.ts'
 
 function base64Url(value: string) {
   const bytes = new TextEncoder().encode(value)
@@ -60,7 +60,7 @@ test('reports expiration, future times, missing exp, and malformed timestamps', 
     assert.ok(expired.analysis.findings.some(({ title }) => title === 'Token is expired'))
     assert.ok(expired.analysis.findings.some(({ title }) => title === 'Long token lifetime'))
     assert.match(expired.analysis.timestamps.find(({ claim }) => claim === 'exp')?.utc ?? '', /UTC$/)
-    assert.equal(expired.analysis.timestamps.find(({ claim }) => claim === 'exp')?.relative, '3 years ago')
+    assert.equal(expired.analysis.timestamps.find(({ claim }) => claim === 'exp')?.relative, 'expired 3 years ago')
   }
   const future = analyzeJwt(token({ alg: 'none' }, { exp: 1_800_000_000, nbf: 1_800_000_000, iat: 1_800_000_000 }), now)
   assert.equal(future.ok, true)
@@ -147,7 +147,66 @@ test('verifies HS256, HS384, and HS512 signatures and rejects wrong secrets', as
 test('generates a signed demo token and bounds displayed JSON size and depth', async () => {
   const sample = await createSampleJwt()
   assert.equal((await verifyHmac(sample, 'demo-secret')).status, 'valid')
+  const parsed = analyzeJwt(sample, Date.now())
+  assert.equal(parsed.ok, true)
+  if (parsed.ok) {
+    assert.equal(parsed.analysis.findings.some(({ title }) => title === 'Issued-at time is in the future'), false)
+    assert.equal(parsed.analysis.timestamps.find(({ claim }) => claim === 'iat')?.relative, 'issued just now')
+  }
   const deep = { a: { b: { c: { d: { e: 'value' } } } } }
   assert.match(formatJsonForDisplay(deep, 1000, 2), /Nested content omitted/)
   assert.ok(formatJsonForDisplay({ content: 'x'.repeat(1000) }, 100).length < 150)
+})
+
+test('formats iat relative to an injected current time and applies clock-skew tolerance', () => {
+  const now = 1_700_000_000_000
+  const find = (iat: number) => analyzeJwt(token({ alg: 'none' }, { iat }), now)
+  const equal = find(now / 1000)
+  assert.equal(equal.ok && equal.analysis.timestamps.find(({ claim }) => claim === 'iat')?.relative, 'issued just now')
+  assert.equal(CLOCK_SKEW_TOLERANCE_SECONDS, 60)
+
+  const slightlyAhead = find(now / 1000 + 30)
+  assert.equal(slightlyAhead.ok && slightlyAhead.analysis.findings.some(({ title }) => title === 'Issued-at time is in the future'), false)
+  assert.equal(slightlyAhead.ok && slightlyAhead.analysis.timestamps.find(({ claim }) => claim === 'iat')?.relative, 'issued just now')
+  const atTolerance = find(now / 1000 + CLOCK_SKEW_TOLERANCE_SECONDS)
+  assert.equal(atTolerance.ok && atTolerance.analysis.findings.some(({ title }) => title === 'Issued-at time is in the future'), false)
+
+  const beyondTolerance = find(now / 1000 + 300)
+  assert.equal(beyondTolerance.ok && beyondTolerance.analysis.findings.some(({ title }) => title === 'Issued-at time is in the future'), true)
+  assert.equal(beyondTolerance.ok && beyondTolerance.analysis.timestamps.find(({ claim }) => claim === 'iat')?.relative, 'issued 5 minutes from now')
+  assert.equal(formatJwtRelativeTime('iat', now / 1000 - 30, now), 'issued 30 seconds ago')
+})
+
+test('formats nbf relative times and ignores future claims within clock-skew tolerance', () => {
+  const now = 1_700_000_000_000
+  const find = (nbf: number) => analyzeJwt(token({ alg: 'none' }, { nbf }), now)
+  const equal = find(now / 1000)
+  assert.equal(equal.ok && equal.analysis.timestamps.find(({ claim }) => claim === 'nbf')?.relative, 'valid now')
+
+  const slightlyAhead = find(now / 1000 + 30)
+  assert.equal(slightlyAhead.ok && slightlyAhead.analysis.findings.some(({ title }) => title === 'Token is not active yet'), false)
+  assert.equal(slightlyAhead.ok && slightlyAhead.analysis.timestamps.find(({ claim }) => claim === 'nbf')?.relative, 'valid in 30 seconds')
+  const atTolerance = find(now / 1000 + CLOCK_SKEW_TOLERANCE_SECONDS)
+  assert.equal(atTolerance.ok && atTolerance.analysis.findings.some(({ title }) => title === 'Token is not active yet'), false)
+
+  const beyondTolerance = find(now / 1000 + 300)
+  assert.equal(beyondTolerance.ok && beyondTolerance.analysis.findings.some(({ title }) => title === 'Token is not active yet'), true)
+  assert.equal(beyondTolerance.ok && beyondTolerance.analysis.timestamps.find(({ claim }) => claim === 'nbf')?.relative, 'valid in 5 minutes')
+  assert.equal(formatJwtRelativeTime('nbf', now / 1000 - 300, now), 'valid since 5 minutes ago')
+})
+
+test('formats expiration, UTC and local times, and rounds unit boundaries naturally', () => {
+  const now = 1_700_000_000_000
+  const expired = analyzeJwt(token({ alg: 'none' }, { exp: now / 1000 - 60 }), now)
+  const future = analyzeJwt(token({ alg: 'none' }, { exp: now / 1000 + 3600 }), now)
+  assert.equal(expired.ok && expired.analysis.timestamps[0].relative, 'expired 1 minute ago')
+  assert.equal(future.ok && future.analysis.timestamps[0].relative, 'expires in 1 hour')
+  if (expired.ok) {
+    const timestamp = expired.analysis.timestamps[0]
+    const date = new Date((now / 1000 - 60) * 1000)
+    assert.equal(timestamp.utc, `${date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '')} UTC`)
+    assert.equal(timestamp.local, date.toLocaleString())
+  }
+  assert.equal(formatJwtRelativeTime('exp', now / 1000 + 59.6, now), 'expires in 1 minute')
+  assert.equal(formatJwtRelativeTime('exp', now / 1000 + 3599, now), 'expires in 1 hour')
 })

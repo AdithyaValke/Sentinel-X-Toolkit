@@ -16,6 +16,7 @@ export type JwtParseResult = { ok: true; analysis: JwtAnalysis } | { ok: false; 
 export type HmacVerification = { status: 'valid' | 'invalid' | 'unsupported'; explanation: string }
 
 export const JWT_MAX_INPUT_BYTES = 8 * 1024
+export const CLOCK_SKEW_TOLERANCE_SECONDS = 60
 const YEAR_SECONDS = 365 * 24 * 60 * 60
 
 export function normalizeJwtInput(input: string): { token: string; error?: string } {
@@ -61,16 +62,24 @@ function decodeJsonObject(segment: string, label: 'Header' | 'Payload'): { value
   return { value: parsed as Record<string, unknown> }
 }
 
-function relativeTime(seconds: number, nowSeconds: number): string {
-  const delta = seconds - nowSeconds
+export function formatJwtRelativeTime(claim: JwtTimestamp['claim'], seconds: number, nowMs = Date.now()): string {
+  const delta = seconds - nowMs / 1000
   const amount = Math.abs(delta)
-  const [value, unit] = amount < 60 ? [Math.round(amount), 'second']
-    : amount < 3600 ? [Math.round(amount / 60), 'minute']
-      : amount < 86400 ? [Math.round(amount / 3600), 'hour']
-        : amount < YEAR_SECONDS ? [Math.round(amount / 86400), 'day']
-          : [Math.round(amount / YEAR_SECONDS), 'year']
+  if (claim === 'iat' && (amount <= 5 || (delta > 0 && delta <= CLOCK_SKEW_TOLERANCE_SECONDS))) return 'issued just now'
+  if (claim === 'nbf' && amount <= 5) return 'valid now'
+  let value = Math.round(amount)
+  let unitIndex = 0
+  const units = ['second', 'minute', 'hour', 'day', 'year']
+  const steps = [60, 60, 24, 365]
+  while (unitIndex < steps.length && value >= steps[unitIndex]) {
+    value = Math.round(value / steps[unitIndex])
+    unitIndex += 1
+  }
+  const unit = units[unitIndex]
   const plural = value === 1 ? unit : `${unit}s`
-  return delta >= 0 ? `in ${value} ${plural}` : `${value} ${plural} ago`
+  if (claim === 'exp') return delta >= 0 ? `expires in ${value} ${plural}` : `expired ${value} ${plural} ago`
+  if (claim === 'nbf') return delta >= 0 ? `valid in ${value} ${plural}` : `valid since ${value} ${plural} ago`
+  return delta >= 0 ? `issued ${value} ${plural} from now` : `issued ${value} ${plural} ago`
 }
 
 function timestamp(claim: JwtTimestamp['claim'], seconds: number, nowSeconds: number): JwtTimestamp {
@@ -80,7 +89,7 @@ function timestamp(claim: JwtTimestamp['claim'], seconds: number, nowSeconds: nu
     seconds,
     utc: `${date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '')} UTC`,
     local: date.toLocaleString(),
-    relative: relativeTime(seconds, nowSeconds),
+    relative: formatJwtRelativeTime(claim, seconds, nowSeconds * 1000),
   }
 }
 
@@ -134,8 +143,8 @@ function analyzeClaims(header: Record<string, unknown>, payload: Record<string, 
   } else if (times.has('exp') && times.get('exp')! <= nowSeconds) {
     findings.push(finding('warning', 'Token is expired', 'The exp time is in the past.', 'Reject expired tokens and check clock synchronization.'))
   }
-  if (times.has('nbf') && times.get('nbf')! > nowSeconds) findings.push(finding('warning', 'Token is not active yet', 'The nbf time is in the future.', 'Check whether this token should be accepted before its not-before time.'))
-  if (times.has('iat') && times.get('iat')! > nowSeconds) findings.push(finding('warning', 'Issued-at time is in the future', 'The iat time is later than the current time.', 'Check token issuance and clock synchronization.'))
+  if (times.has('nbf') && times.get('nbf')! > nowSeconds + CLOCK_SKEW_TOLERANCE_SECONDS) findings.push(finding('warning', 'Token is not active yet', 'The nbf time is more than the allowed clock-skew tolerance in the future.', 'Check whether this token should be accepted before its not-before time.'))
+  if (times.has('iat') && times.get('iat')! > nowSeconds + CLOCK_SKEW_TOLERANCE_SECONDS) findings.push(finding('warning', 'Issued-at time is in the future', 'The iat time is more than the allowed clock-skew tolerance in the future.', 'Check token issuance and clock synchronization.'))
   if (times.has('iat') && times.has('exp') && times.get('exp')! - times.get('iat')! > YEAR_SECONDS) {
     findings.push(finding('warning', 'Long token lifetime', 'The exp and iat claims span more than one year.', 'Review whether a shorter lifetime and refresh flow would reduce exposure.'))
   }
@@ -198,9 +207,9 @@ export async function verifyHmac(token: string, secret: string): Promise<HmacVer
   }
 }
 
-export async function createSampleJwt(): Promise<string> {
+export async function createSampleJwt(nowMs = Date.now()): Promise<string> {
   const secret = 'demo-secret'
-  const now = Math.floor(Date.now() / 1000)
+  const now = Math.floor(nowMs / 1000)
   const header = { alg: 'HS256', typ: 'JWT' }
   const payload = { iss: 'payload-workbench-demo', aud: 'local-learning', sub: 'sample-user', iat: now, exp: now + 3600 }
   const encode = (value: unknown) => {
