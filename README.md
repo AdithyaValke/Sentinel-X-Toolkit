@@ -45,6 +45,7 @@ Generate a digest from input text using MD5, SHA-256, or SHA-512. Hashing happen
 Submit one or more candidate strings for format-based analysis. The backend checks lengths, character sets, and known prefixes/structured formats, then returns likely candidates and evidence. It can identify patterns associated with common raw digests (including CRC32/CRC32b, MySQL, MD4, MD5, NTLM, SHA-family, RIPEMD-160, SHA-3, and BLAKE2 forms) and password-hash formats such as bcrypt, Argon2, scrypt, and Unix crypt variants.
 
 This is a heuristic, not cryptographic verification: different algorithms can produce the same length and character format. Results can be ambiguous, and should be checked against the system or data format that produced the value. The feature does not crack hashes or recover their original input.
+Identify Hash accepts up to 50 non-empty lines per request.
 
 ### Security Lab
 
@@ -87,7 +88,7 @@ flowchart LR
     N -. local-only tools .-> L[IoC sanitizer and reference generator]
 ~~~
 
-render.yaml configures the backend root directory, install/start commands, and /health health-check path. The public processing and identification endpoints share a fixed-window rate limit. Production on Render requires shared Redis-compatible rate-limit storage.
+render.yaml configures the backend root directory, install/start commands, and /health health-check path. The public processing and identification endpoints share a moving-window rate limit. Production on Render requires shared Redis-compatible rate-limit storage.
 
 ## Project structure
 
@@ -99,6 +100,7 @@ render.yaml configures the backend root directory, install/start commands, and /
 │   ├── app.py
 │   ├── hash_identifier.py
 │   ├── requirements.txt
+│   ├── requirements-dev.txt
 │   └── tests/
 │       └── test_app.py
 └── security-payload-workbench-dashboard/
@@ -139,7 +141,7 @@ $env:PORT = "8000"
 python app.py
 ~~~
 
-The API listens on http://localhost:8000 by default. The Flask app does not load .env files itself; configure variables in the shell or your deployment environment. The backend dependencies include Flask, Flask-CORS, Flask-Limiter with its Redis extra, Gunicorn, and pytest.
+The API listens on http://localhost:8000 by default. The Flask app does not load .env files itself; configure variables in the shell or your deployment environment. Runtime dependencies include Flask, Flask-CORS, Flask-Limiter with its Redis extra, and Gunicorn. Install `requirements-dev.txt` to add pytest for local testing.
 
 ### 2. Start the Next.js frontend
 
@@ -170,7 +172,7 @@ On Render, the platform sets RENDER; the app uses it to require an explicit CORS
 
 ## API reference
 
-All processing requests must use Content-Type: application/json. The API limits request bodies to 10 KiB. The two POST endpoints share the configured per-IP fixed-window limit.
+All processing requests must use Content-Type: application/json. The API limits request bodies to 10 KiB. The two POST endpoints share the configured per-IP moving-window limit.
 
 ### GET /health
 
@@ -231,24 +233,29 @@ Error responses use the JSON shape { "success": false, "result": "", "error": "<
 ## Security and responsible use
 
 - Flask-CORS allows only explicit HTTP(S) origins. The Render deployment requires FRONTEND_ORIGIN; wildcard and path-bearing origins are rejected.
-- /api/process and /api/identify-hash share a Flask-Limiter fixed-window limit. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
+- /api/process and /api/identify-hash share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
 - In Render mode, the limiter validates the single CF-Connecting-IP address as the client IP and does not trust X-Forwarded-For. If that trusted header is missing or invalid, the request fails with HTTP 503. Outside Render, local/test use the socket peer address and do not trust forwarded headers.
 - The request body is capped at 10 KiB; API inputs and required fields are validated, and unexpected server errors return a generic response.
 - The app does not execute Security Lab output or initiate network connections for generated references. Manually running a generated reachability check is a separate action and can contact the entered host.
 - Hash identification is heuristic and may return ambiguous candidates. MD5 is not appropriate for modern password storage; use a purpose-built password hashing scheme such as Argon2id or bcrypt for password storage.
 - These controls describe the current implementation and do not guarantee that a deployment is secure against every threat.
 
+### Render client IP assumption
+
+The backend assumes all inbound Render traffic arrives through Cloudflare, which supplies `CF-Connecting-IP`. Rate-limited API routes fail closed with HTTP 503 if that header is missing or invalid. The API never trusts `X-Forwarded-For`.
+
 ## Testing and build
 
-The frontend package does not define a test script; its current tests run with Node's built-in test runner. Commands below should be run from the indicated project directory.
+The frontend `test` script runs the Node.js built-in test runner. Commands below should be run from the indicated project directory.
 
 ~~~powershell
 # Frontend: from security-payload-workbench-dashboard
-node --experimental-strip-types --test tests/*.test.ts
+corepack pnpm test
 corepack pnpm exec tsc --noEmit
 corepack pnpm build
 
 # Backend: from security-payload-workbench-backend
+python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ~~~
 
@@ -258,7 +265,7 @@ The backend test suite uses pytest and Flask's test client. It covers processing
 
 ### Flask backend on Render
 
-render.yaml sets the backend root to security-payload-workbench-backend, installs requirements.txt, starts Gunicorn on the platform-provided $PORT, and uses /health as its health-check path. Configure:
+render.yaml sets the backend root to security-payload-workbench-backend, installs requirements.txt, starts Gunicorn with two workers and a 30-second timeout on the platform-provided $PORT, and uses /health as its health-check path. Revisit the worker count if the Render instance size changes. Configure:
 
 1. FRONTEND_ORIGIN as the exact deployed frontend origin. For the supplied frontend URL, that is https://payload-workbench.vercel.app.
 2. RATE_LIMIT_STORAGE_URI as the private internal connection URL for a Redis-compatible Render Key Value service. Keep it in the same region as the backend where possible.
@@ -277,7 +284,7 @@ When changing frontend domains, update Render's FRONTEND_ORIGIN to the exact ori
 - **API shown offline:** Open the configured API base URL with /health appended. Confirm the Flask service is running and returns {"status":"ok"}.
 - **Frontend API or CORS errors:** Check NEXT_PUBLIC_API_URL for the service base URL (no endpoint suffix), then make FRONTEND_ORIGIN exactly match the browser's scheme, host, and port. Restart/redeploy after changes.
 - **Production service fails to start:** On Render, verify FRONTEND_ORIGIN, a valid positive API_RATE_LIMIT_PER_MINUTE, and a private Redis-compatible RATE_LIMIT_STORAGE_URI. A missing or non-Redis storage URL prevents startup.
-- **Requests return 429:** The per-IP request limit is shared by both POST endpoints. Wait for the fixed window to reset or set an appropriate positive limit.
+- **Requests return 429:** The per-IP moving-window request limit is shared by both POST endpoints. Wait until earlier requests age out of the window or set an appropriate positive limit.
 - **Requests return 503:** Check that Render supplies a valid single CF-Connecting-IP value and that the Redis-compatible rate-limit store is available. Storage failures intentionally fail closed.
 - **Dependency install or frontend build errors:** Use Node.js compatible with the Next.js requirement, Corepack with pnpm 12.3.4, and run the frozen-lockfile install from the dashboard directory. Install backend packages from requirements.txt.
 - **Local Flask connection fails:** Start the backend on port 8000 and verify NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local.

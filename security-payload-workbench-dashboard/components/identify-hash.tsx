@@ -61,7 +61,7 @@ export function IdentifyHash() {
         <header className="border-b border-slate-200 pb-5 dark:border-slate-800/80">
           <div className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-700 dark:text-cyan-400"><Fingerprint className="size-4" /> Identify hash</div>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">Inspect a <span className="text-cyan-600 dark:text-cyan-400">hash signature</span></h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">Paste a hash string to review likely algorithms and the evidence behind each candidate.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">Paste one or more hashes to review likely algorithms and evidence. Analyze up to 50 non-empty lines per request.</p>
         </header>
 
         <section className="grid flex-1 gap-5 py-5 lg:grid-cols-2" aria-label="Hash identification workspace">

@@ -47,6 +47,8 @@ class ClientIpUnavailable(Exception):
 
 
 def verified_client_ip() -> str:
+    # Render traffic is assumed to arrive through Cloudflare; only CF-Connecting-IP is trusted there.
+    # A missing or invalid value fails closed on rate-limited routes. X-Forwarded-For is never trusted.
     if app.config.get("TRUST_RENDER_CLOUDFLARE_IP", _is_render):
         candidate = request.headers.get("CF-Connecting-IP", "")
         if not candidate or "," in candidate:
@@ -69,7 +71,7 @@ limiter = Limiter(
     key_func=verified_client_ip,
     app=app,
     storage_uri=_rate_limit_storage or "memory://",
-    strategy="fixed-window",
+    strategy="moving-window",
     headers_enabled=True,
     swallow_errors=False,
     on_breach=_rate_limit_response,
@@ -117,6 +119,14 @@ else:
 if not origins or any(not _is_trusted_origin(origin) for origin in origins):
     raise RuntimeError("FRONTEND_ORIGIN must contain explicit HTTP(S) origins without paths or wildcards")
 CORS(app, resources={r"/*": {"origins": origins}})
+
+
+@app.after_request
+def security_response_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def encode_base64(text: str) -> str:

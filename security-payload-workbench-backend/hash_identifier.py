@@ -2,6 +2,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 MAX_HASH_INPUT_LENGTH = 4096
+MAX_HASH_LINES = 50
 
 HEX_PATTERNS = {
     8: [
@@ -340,6 +341,8 @@ def analyze_hashes(input_text: str) -> Dict[str, Any]:
     lines = [line.strip() for line in input_text.splitlines() if line.strip()]
     if not lines:
         raise ValueError("Input cannot be empty")
+    if len(lines) > MAX_HASH_LINES:
+        raise ValueError(f"Hash identification accepts at most {MAX_HASH_LINES} non-empty lines")
 
     if len(lines) == 1:
         single = identify_single_hash(lines[0])

@@ -30,6 +30,26 @@ def test_health(client):
     assert response.get_json() == {"status": "ok"}
 
 
+def test_api_security_headers(client):
+    response = post_process(client, "base64_encode", "hello")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_render_client_ip_trust_fails_closed_without_header_and_accepts_valid_ip(client):
+    app.config["TRUST_RENDER_CLOUDFLARE_IP"] = True
+    missing = post_process(client, "base64_encode", "hello")
+    assert missing.status_code == 503
+    assert missing.get_json() == {"success": False, "result": "", "error": "Unable to verify client IP"}
+
+    accepted = client.post(
+        "/api/process",
+        json={"input_text": "hello", "operation": "base64_encode"},
+        headers={"CF-Connecting-IP": "203.0.113.10"},
+    )
+    assert accepted.status_code == 200
+
+
 @pytest.mark.parametrize("origin", ["https://payload-workbench.vercel.app", "http://localhost:3000", "https://example.org/"])
 def test_explicit_cors_origins_are_accepted(origin):
     assert _is_trusted_origin(origin)
@@ -338,6 +358,28 @@ def test_dedicated_identify_hash_endpoint(client):
     assert res_invalid.status_code == 400
 
 
+def test_identify_hash_line_limit(client):
+    fifty_lines = "\n".join(["a" * 32] * 50)
+    fifty_one_lines = "\n".join(["a" * 32] * 51)
+    requests = [
+        ("/api/process", {"input_text": fifty_lines, "operation": "identify_hash"}, 200),
+        ("/api/identify-hash", {"hash": fifty_lines}, 200),
+        ("/api/process", {"input_text": fifty_one_lines, "operation": "identify_hash"}, 400),
+        ("/api/identify-hash", {"hash": fifty_one_lines}, 400),
+    ]
+    for path, payload, expected_status in requests:
+        response = client.post(path, json=payload)
+        assert response.status_code == expected_status
+        if expected_status == 400:
+            assert response.get_json() == {
+                "success": False,
+                "result": "",
+                "error": "Hash identification accepts at most 50 non-empty lines",
+            }
+        else:
+            assert response.get_json()["success"] is True
+
+
 def test_hash_converter_and_identify_hash_coexist_independently(client):
     """Regression Test: Verify Hash Converter ('hash' operation) and Identify Hash Function
 
@@ -388,6 +430,17 @@ def test_rate_limit_threshold_shared_between_endpoints_and_429_shape(client):
     assert "Retry-After" in limited.headers
 
 
+def test_moving_window_storage_supports_memory_and_redis_uris():
+    from limits.storage import storage_from_string
+    from limits.strategies import MovingWindowRateLimiter
+
+    assert isinstance(limiter.limiter, MovingWindowRateLimiter)
+    for uri in ("memory://", "redis://localhost:6379/0"):
+        storage = storage_from_string(uri)
+        assert callable(storage.get_moving_window)
+        assert callable(storage.acquire_entry)
+
+
 def test_rate_limit_resets_after_window_with_controlled_clock(client, monkeypatch):
     import limits.storage.memory
 
@@ -400,6 +453,19 @@ def test_rate_limit_resets_after_window_with_controlled_clock(client, monkeypatc
 
     now[0] = 661.0
     assert post_process(client, "base64_encode", "after window").status_code == 200
+
+
+def test_moving_window_enforces_limit_across_fixed_window_boundary(client, monkeypatch):
+    import limits.storage.memory
+
+    now = [659.9]
+    monkeypatch.setattr(limits.storage.memory.time, "time", lambda: now[0])
+    limiter.reset()
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
+    assert post_process(client, "base64_encode", "before boundary").status_code == 200
+
+    now[0] = 660.1
+    assert post_process(client, "base64_encode", "after boundary").status_code == 429
 
 
 def test_render_ip_uses_only_cloudflare_header_and_rejects_bad_values(client):
@@ -453,7 +519,7 @@ def test_limiter_storage_failure_fails_closed_with_safe_503(client, monkeypatch)
     def unavailable(*_args, **_kwargs):
         raise StorageError("private storage connection detail")
 
-    monkeypatch.setattr(limiter.storage, "incr", unavailable)
+    monkeypatch.setattr(limiter.storage, "acquire_entry", unavailable)
     response = post_process(client, "base64_encode", "input")
     assert response.status_code == 503
     assert response.get_json() == {
