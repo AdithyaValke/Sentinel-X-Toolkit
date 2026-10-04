@@ -1,18 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, Check, Clipboard, Fingerprint, Info, Loader2 } from 'lucide-react'
+import { AlertTriangle, Check, Clipboard, Fingerprint, Info, Layers3, Loader2, ScanSearch, ShieldCheck, Sparkles } from 'lucide-react'
 import { callBackend, type BackendResponse } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
 
 const HASH_EXAMPLES = [
-  { label: 'MD5 (32 hex)', value: '5d41402abc4b2a76b9719d911017c592' },
-  { label: 'SHA-256 (64 hex)', value: '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824' },
-  { label: 'bcrypt ($2a$)', value: '$2a$12$e8KERg7gm.bQ1qV8q6uP5.9M5M.x2Y7Wv0.qP4P.r8X1V3Z2Y7Wv0' },
-  { label: 'Argon2id', value: '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgqlndPuxWCsUzbsRUhq' },
-  { label: 'NTLM (32 hex)', value: 'cc325255476a26998656a840e69818ae' },
-  { label: 'SHA-1 (40 hex)', value: 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d' },
+  { label: 'MD5 (32 hex)', detail: '32 characters', value: '5d41402abc4b2a76b9719d911017c592' },
+  { label: 'SHA-256 (64 hex)', detail: '64 characters', value: '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824' },
+  { label: 'bcrypt ($2a$)', detail: 'Password hash', value: '$2a$12$e8KERg7gm.bQ1qV8q6uP5.9M5M.x2Y7Wv0.qP4P.r8X1V3Z2Y7Wv0' },
+  { label: 'Argon2id', detail: 'Password hash', value: '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgqlndPuxWCsUzbsRUhq' },
+  { label: 'NTLM (32 hex)', detail: '32 characters', value: 'cc325255476a26998656a840e69818ae' },
+  { label: 'SHA-1 (40 hex)', detail: '40 characters', value: 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d' },
 ]
 
 export function IdentifyHash() {
@@ -26,24 +25,13 @@ export function IdentifyHash() {
 
   function updateInput(value: string) {
     if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
-    latestRequest.current.cancel()
-    setInput(value)
-    setAnalysis(null)
-    setError('')
-    setLoading(false)
+    latestRequest.current.cancel(); setInput(value); setAnalysis(null); setError(''); setLoading(false)
   }
 
   async function identify(value = input) {
     if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
-    if (!value.trim()) {
-      setAnalysis(null)
-      setError('')
-      setLoading(false)
-      return
-    }
-    const request = latestRequest.current.begin()
-    setLoading(true)
-    setError('')
+    if (!value.trim()) { setAnalysis(null); setError(''); setLoading(false); return }
+    const request = latestRequest.current.begin(); setLoading(true); setError('')
     try {
       const response = await callBackend('identify_hash', value, null, request.signal)
       if (!latestRequest.current.isCurrent(request.id)) return
@@ -51,8 +39,7 @@ export function IdentifyHash() {
       else { setAnalysis(null); setError(response.error ?? 'The operation failed.') }
     } catch (caught) {
       if (!latestRequest.current.isCurrent(request.id)) return
-      setAnalysis(null)
-      setError(caught instanceof Error ? caught.message : 'The operation failed.')
+      setAnalysis(null); setError(caught instanceof Error ? caught.message : 'The operation failed.')
     } finally { if (latestRequest.current.isCurrent(request.id)) setLoading(false) }
   }
 
@@ -69,21 +56,30 @@ export function IdentifyHash() {
   }
 
   return (
-    <main className="min-h-screen bg-[#080b12] px-4 py-6 text-slate-100 sm:px-6 lg:px-10 lg:py-10">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/dashboard" className="inline-flex min-h-11 items-center gap-2 text-sm text-slate-400 transition hover:text-cyan-300"><ArrowLeft className="size-4" />Back to dashboard</Link>
-        <header className="mt-8"><div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-violet-300"><Fingerprint className="size-4" />Identify Hash Function</div><h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Inspect a hash signature</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">Paste a hash string to review likely algorithms and the evidence behind each candidate.</p></header>
-        <section className="mt-8 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]" aria-label="Hash identification workspace">
-          <article className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-5 sm:p-6"><label htmlFor="identify-input" className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">Hash input</label><textarea id="identify-input" value={input} onChange={(event) => updateInput(event.target.value)} placeholder="Paste raw hash string..." spellCheck={false} className="mt-3 min-h-44 w-full resize-y rounded-xl border border-white/[0.1] bg-[#080b12] p-3 font-mono text-sm leading-6 text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-300/20" aria-describedby={error ? 'identify-error' : undefined} />
-            <div className="mt-2 flex justify-between font-mono text-[10px] text-slate-600"><span>{input.length} characters</span><span>UTF-8</span></div>
-            <button type="button" onClick={() => void identify()} disabled={!input.trim() || loading} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"><span>{loading ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />}</span>{loading ? 'Analyzing format...' : 'Identify Hash'}</button>
-            <div className="mt-6"><span className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-600">Load sample hash</span><div className="mt-2 flex flex-wrap gap-2">{HASH_EXAMPLES.map((example) => <button key={example.label} type="button" onClick={() => updateInput(example.value)} className="min-h-11 rounded-lg border border-white/10 px-2.5 py-2 text-left text-xs text-slate-400 transition hover:border-violet-300/40 hover:text-violet-200">{example.label}</button>)}</div></div>
+    <main className="identify-hash-page min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-[#050b14] dark:text-slate-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1480px] flex-col px-4 py-6 sm:px-6 lg:px-9 lg:py-7">
+        <header className="border-b border-slate-200 pb-5 dark:border-slate-800/80">
+          <div className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-700 dark:text-cyan-400"><Fingerprint className="size-4" /> Identify hash</div>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">Inspect a <span className="text-cyan-600 dark:text-cyan-400">hash signature</span></h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">Paste a hash string to review likely algorithms and the evidence behind each candidate.</p>
+        </header>
+
+        <section className="grid flex-1 gap-5 py-5 lg:grid-cols-2" aria-label="Hash identification workspace">
+          <article className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/45 sm:p-6">
+            <div className="flex items-center justify-between"><h2 className="flex items-center gap-3 font-mono text-sm font-bold uppercase tracking-wider"><span className="flex size-9 items-center justify-center rounded-full bg-cyan-500/15 text-xs text-cyan-700 dark:text-cyan-300">01</span> Hash input</h2><span className="rounded-full bg-cyan-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-cyan-700 dark:text-cyan-300">Live</span></div>
+            <textarea id="identify-input" value={input} onChange={(event) => updateInput(event.target.value)} placeholder="Paste raw hash string..." spellCheck={false} className="mt-4 min-h-40 flex-1 resize-y rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-800 outline-none placeholder:text-slate-500 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/15 dark:border-slate-800 dark:bg-[#07111f] dark:text-slate-200 dark:placeholder:text-slate-600" aria-describedby={error ? 'identify-error' : undefined} />
+            <div className="mt-2 flex justify-between font-mono text-[10px] text-slate-500"><span>{input.length} characters</span><span>UTF-8</span></div>
+            <button type="button" onClick={() => void identify()} disabled={!input.trim() || loading} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50">{loading ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />}{loading ? 'Analyzing format...' : 'Identify Hash'}</button>
+            <div className="mt-6"><span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Load sample hash</span><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{HASH_EXAMPLES.map((example) => <button key={example.label} type="button" onClick={() => updateInput(example.value)} className="flex min-h-14 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-left transition hover:border-cyan-500/60 hover:bg-cyan-500/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:border-slate-800 dark:bg-slate-900/70"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-300"><ShieldCheck className="size-3.5" /></span><span className="min-w-0"><strong className="block truncate text-[11px] font-medium">{example.label}</strong><small className="mt-1 block truncate text-[10px] text-slate-500">{example.detail}</small></span></button>)}</div></div>
+            {error && <p id="identify-error" role="alert" className="mt-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm leading-6 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">{error}</p>}
           </article>
-          <article className="min-w-0 rounded-2xl border border-white/[0.08] bg-[#0d121c] p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-600">Analysis output</p><h2 className="mt-2 text-lg font-semibold text-white">Hash candidates</h2></div><button type="button" onClick={() => void copyResult()} disabled={!analysis?.result} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 transition hover:border-cyan-300/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Copy identification result">{copied ? <Check className="size-4" /> : <Clipboard className="size-4" />}{copied ? 'Copied' : 'Copy'}</button></div>
-            {error && <p id="identify-error" role="alert" className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm leading-6 text-rose-200">{error}</p>}
-            {analysis ? <div className="mt-5 min-w-0" tabIndex={0} aria-label="Hash identification results"><div className="flex flex-wrap gap-2 border-b border-white/[0.08] pb-3 text-xs"><span className="rounded bg-cyan-400/10 px-2 py-1 text-cyan-200">Length: {analysis.input_length} chars</span><span className="rounded bg-white/5 px-2 py-1 text-slate-300">Format: {analysis.character_format}</span><span className="rounded bg-emerald-400/10 px-2 py-1 text-emerald-200">{analysis.candidates?.length ? `${analysis.candidates.length} candidate(s)` : 'Unknown format'}</span></div>{analysis.warning && <div className="mt-4 flex gap-3 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm leading-6 text-amber-100"><AlertTriangle className="mt-1 size-4 shrink-0" /><span>{analysis.warning}</span></div>}<div className="mt-4 flex flex-col gap-3">{analysis.candidates?.map((candidate, index) => <div key={`${candidate.algorithm}-${index}`} className="min-w-0 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-cyan-200">{candidate.algorithm}</strong><span className="rounded bg-white/5 px-2 py-1 text-[10px] uppercase tracking-wider text-slate-400">{candidate.evidence.replace(/_/g, ' ')}</span></div><p className="mt-2 break-words text-sm leading-6 text-slate-400">{candidate.explanation}</p></div>)}</div>{analysis.recommendation && <div className="mt-4 flex gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-sm leading-6 text-cyan-100"><Info className="mt-1 size-4 shrink-0" /><span>{analysis.recommendation}</span></div>}</div> : <div className="flex min-h-60 flex-col items-center justify-center gap-2 text-center text-slate-500"><Info className="size-6" /><p className="font-semibold text-slate-300">Waiting for a hash</p><p className="max-w-xs text-sm leading-6">Enter a value or choose a sample to see likely algorithms.</p></div>}
+
+          <article className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/45 sm:p-6"><div className="flex items-center justify-between gap-3"><h2 className="flex items-center gap-3 font-mono text-sm font-bold uppercase tracking-wider"><span className="flex size-9 items-center justify-center rounded-full bg-cyan-500/15 text-xs text-cyan-700 dark:text-cyan-300">02</span> Analysis results</h2><button type="button" onClick={() => void copyResult()} disabled={!analysis?.result} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs text-slate-500 transition hover:border-cyan-500/50 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:text-cyan-300" aria-label="Copy identification result">{copied ? <Check className="size-4" /> : <Clipboard className="size-4" />}{copied ? 'Copied' : 'Copy'}</button></div>
+            {analysis ? <div className="mt-5 min-w-0 overflow-y-auto" tabIndex={0} aria-label="Hash identification results"><div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 text-xs dark:border-slate-800"><span className="rounded bg-cyan-500/10 px-2 py-1 text-cyan-700 dark:text-cyan-200">Length: {analysis.input_length} chars</span><span className="rounded bg-slate-100 px-2 py-1 text-slate-600 dark:bg-white/5 dark:text-slate-300">Format: {analysis.character_format}</span><span className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-200">{analysis.candidates?.length ? `${analysis.candidates.length} candidate(s)` : 'Unknown format'}</span></div>{analysis.warning && <div className="mt-4 flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100"><AlertTriangle className="mt-1 size-4 shrink-0" /><span>{analysis.warning}</span></div>}<div className="mt-4 flex flex-col gap-3">{analysis.candidates?.map((candidate, index) => <div key={`${candidate.algorithm}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-white/[0.025]"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-cyan-700 dark:text-cyan-200">{candidate.algorithm}</strong><span className="rounded bg-slate-200 px-2 py-1 text-[10px] uppercase tracking-wider text-slate-600 dark:bg-white/5 dark:text-slate-400">{candidate.evidence.replace(/_/g, ' ')}</span></div><p className="mt-2 break-words text-sm leading-6 text-slate-600 dark:text-slate-400">{candidate.explanation}</p></div>)}</div>{analysis.recommendation && <div className="mt-4 flex gap-3 rounded-xl border border-cyan-300 bg-cyan-50 p-3 text-sm leading-6 text-cyan-900 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-100"><Info className="mt-1 size-4 shrink-0" /><span>{analysis.recommendation}</span></div>}</div> : <div className="flex min-h-0 flex-1 flex-col justify-center"><div className="mx-auto max-w-xl text-center"><div className="mx-auto flex size-24 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-500"><Fingerprint className="size-12" /></div><h3 className="mt-5 text-2xl font-semibold">Ready to inspect a hash</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-400">Paste a hash or choose a sample to view likely algorithms and supporting evidence.</p><div className="mt-8 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-800 dark:bg-slate-900/60"><ScanSearch className="size-6 text-cyan-600 dark:text-cyan-300" /><strong className="mt-4 block text-sm">Pattern matching</strong><p className="mt-2 text-xs leading-5 text-slate-500">Analyzes hash structure and common patterns.</p></div><div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-800 dark:bg-slate-900/60"><Layers3 className="size-6 text-cyan-600 dark:text-cyan-300" /><strong className="mt-4 block text-sm">Candidate ranking</strong><p className="mt-2 text-xs leading-5 text-slate-500">Ranks likely algorithms using confidence score.</p></div><div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-800 dark:bg-slate-900/60"><Sparkles className="size-6 text-cyan-600 dark:text-cyan-300" /><strong className="mt-4 block text-sm">Evidence details</strong><p className="mt-2 text-xs leading-5 text-slate-500">Shows format, length, and matching indicators.</p></div></div></div></div>}
           </article>
         </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/45 sm:p-5" aria-labelledby="quick-reference-title"><div className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300"><Info className="size-4" /><span id="quick-reference-title">Quick reference</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"><strong className="text-sm text-cyan-700 dark:text-cyan-300">32 hex chars</strong><p className="mt-1 text-xs text-slate-500">MD5 / NTLM</p></div><div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"><strong className="text-sm text-cyan-700 dark:text-cyan-300">40 hex chars</strong><p className="mt-1 text-xs text-slate-500">SHA-1</p></div><div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"><strong className="text-sm text-cyan-700 dark:text-cyan-300">64 hex chars</strong><p className="mt-1 text-xs text-slate-500">SHA-256</p></div><div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"><strong className="text-sm text-cyan-700 dark:text-cyan-300">Password hashes</strong><p className="mt-1 text-xs text-slate-500">bcrypt / Argon2id</p></div></div><p className="mt-3 text-[11px] text-slate-500">Format and length are heuristic clues, not definitive identification.</p></section>
       </div>
     </main>
   )
