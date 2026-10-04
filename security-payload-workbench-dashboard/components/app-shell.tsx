@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   Fingerprint,
   FlaskConical,
+  GitBranch,
   Hash,
   LayoutDashboard,
   PanelLeftClose,
@@ -23,6 +24,7 @@ import { LatestRequest } from '@/lib/latest-request'
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
   { label: 'Payload Tools', icon: TerminalSquare, href: '/payload-tools' },
+  { label: 'Chain Builder', icon: GitBranch, href: '/chain-builder' },
   { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
   { label: 'Identify Hash', icon: Fingerprint, href: '/identify-hash' },
   { label: 'Security Lab', icon: FlaskConical, href: '/security-lab' },
@@ -64,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ApiStatusContext.Provider value={apiStatus}>
-      <div className={`app-shell ${isDark ? 'app-shell-dark' : 'app-shell-light'}`}>
+      <div className={`app-shell ${isDark ? 'app-shell-dark' : 'app-shell-light'} ${pathname === '/chain-builder' ? 'app-shell-chain' : ''}`}>
         {mobileOpen && <button type="button" aria-label="Close navigation" className="app-sidebar-backdrop" onClick={() => setMobileOpen(false)} />}
         <aside id="app-sidebar" className={`app-sidebar ${collapsed ? 'app-sidebar-collapsed' : ''} ${mobileOpen ? 'app-sidebar-open' : ''}`}>
           <div className="app-sidebar-brand">

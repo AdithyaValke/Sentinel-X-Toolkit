@@ -1,3 +1,5 @@
+import { isChainResponse } from './payload-operations.ts'
+
 export type HashAlgorithm = 'MD5' | 'SHA-256' | 'SHA-512';
 
 export interface HashCandidate {
@@ -158,5 +160,52 @@ export async function callBackend(
   } finally {
     signal?.removeEventListener('abort', abort)
     clearTimeout(timeout);
+  }
+}
+
+export interface ChainResponse {
+  steps: { operation: string; output: string }[]
+  final: string
+}
+
+export async function callChain(inputText: string, steps: { operation: string }[], signal?: AbortSignal): Promise<ChainResponse> {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/chain`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input_text: inputText, steps }), signal: controller.signal,
+    })
+    if (!(response.headers.get('content-type') ?? '').includes('application/json')) {
+      throw new Error(`The API returned an unexpected response (HTTP ${response.status}).`)
+    }
+    const data: unknown = await response.json()
+    const validSteps = (value: unknown): value is ChainResponse['steps'] => Array.isArray(value) && value.every((step) =>
+      Boolean(step && typeof step === 'object' && 'operation' in step && typeof step.operation === 'string' && 'output' in step && typeof step.output === 'string'))
+    if (!isChainResponse(data)) {
+      if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' && !response.ok) {
+        const partial = 'steps' in data && validSteps(data.steps) ? data.steps : []
+        if ('failed_step' in data && typeof data.failed_step === 'number' && Number.isInteger(data.failed_step)) {
+          throw Object.assign(new Error(data.error), { partialSteps: partial, failedStep: data.failed_step })
+        }
+        throw new Error(data.error)
+      }
+      throw new Error('The API returned an invalid response.')
+    }
+    if (!response.ok) throw new Error('The chain request failed.')
+    return { steps: data.steps, final: data.final }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      if (signal?.aborted) throw error
+      throw new Error('The request timed out. Check that the Flask API is running and reachable.')
+    }
+    if (error instanceof TypeError) throw new Error('Could not reach the Flask API. Check its URL and CORS settings.')
+    throw error
+  } finally {
+    signal?.removeEventListener('abort', abort)
+    clearTimeout(timeout)
   }
 }

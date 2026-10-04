@@ -14,6 +14,11 @@ const nextConfig = {
 
     // Inline scripts/styles are required by the current theme bootstrap and Next.js runtime.
     // This trades strict script/style CSP for compatibility; a nonce-based CSP needs request rendering.
+    // React's development runtime uses eval(); keep this permission out of production CSP.
+    const scriptSrc = [
+      "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+      ...(process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : []),
+    ].join(' ')
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -22,7 +27,7 @@ const nextConfig = {
       "object-src 'none'",
       "img-src 'self' data:",
       `connect-src 'self' ${apiOrigin} https://vitals.vercel-insights.com`.trim(),
-      "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
     ].join('; ')
 

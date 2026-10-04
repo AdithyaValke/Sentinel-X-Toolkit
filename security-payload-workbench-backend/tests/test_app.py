@@ -30,6 +30,63 @@ def test_health(client):
     assert response.get_json() == {"status": "ok"}
 
 
+def test_chain_valid_two_and_ten_steps(client):
+    response = client.post("/api/chain", json={"input_text": "hello world", "steps": [
+        {"operation": "url_encode"}, {"operation": "base64_encode"},
+    ]})
+    assert response.status_code == 200
+    assert response.get_json() == {"steps": [
+        {"operation": "url_encode", "output": "hello%20world"},
+        {"operation": "base64_encode", "output": "aGVsbG8lMjB3b3JsZA=="},
+    ], "final": "aGVsbG8lMjB3b3JsZA=="}
+    ten = client.post("/api/chain", json={"input_text": "x", "steps": [{"operation": "url_encode"}] * 10})
+    assert ten.status_code == 200
+    assert len(ten.get_json()["steps"]) == 10
+
+
+@pytest.mark.parametrize(("payload", "fragment"), [
+    ({"input_text": "x", "steps": []}, "at least one"),
+    ({"input_text": "x", "steps": [{"operation": "url_encode"}] * 11}, "at most"),
+    ({"input_text": "x", "steps": [{"operation": "nope"}]}, "unsupported"),
+    ({"input_text": "x", "steps": [{"operation": "identify_hash"}]}, "unsupported"),
+    ({"input_text": "x", "steps": "url_encode"}, "list"),
+    ({"input_text": 7, "steps": [{"operation": "url_encode"}]}, "string"),
+    ({"input_text": "x", "steps": ["url_encode"]}, "string"),
+    ({"input_text": "x", "steps": [{"operation": "url_encode", "extra": 1}]}, "string"),
+])
+def test_chain_validation(client, payload, fragment):
+    response = client.post("/api/chain", json=payload)
+    assert response.status_code == 400
+    assert set(response.get_json()) == {"success", "result", "error"}
+    assert fragment in response.get_json()["error"]
+    assert "traceback" not in response.get_data(as_text=True).lower()
+
+
+def test_chain_mid_failure_and_output_amplification(client):
+    failed = client.post("/api/chain", json={"input_text": "%%%", "steps": [
+        {"operation": "url_encode"}, {"operation": "base64_decode"},
+    ]})
+    assert failed.status_code == 400
+    assert "Step 1" in failed.get_json()["error"]
+    assert "traceback" not in failed.get_data(as_text=True).lower()
+    amplified = client.post("/api/chain", json={"input_text": "a" * 9000, "steps": [
+        {"operation": "hex_encode"}, {"operation": "hex_encode"}, {"operation": "hex_encode"},
+    ]})
+    assert amplified.status_code == 400
+    assert "Step 2" in amplified.get_json()["error"]
+
+
+def test_chain_request_limits_and_rate_limit(client):
+    assert client.post("/api/chain", data="{}", content_type="text/plain").status_code == 415
+    assert client.post("/api/chain", data='{"input_text":"' + ('x' * (11 * 1024)) + '"}', content_type="application/json").status_code == 413
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
+    payload = {"input_text": "x", "steps": [{"operation": "url_encode"}]}
+    assert client.post("/api/chain", json=payload).status_code == 200
+    limited = client.post("/api/chain", json=payload)
+    assert limited.status_code == 429
+    assert "traceback" not in limited.get_data(as_text=True).lower()
+
+
 def test_api_security_headers(client):
     response = post_process(client, "base64_encode", "hello")
     assert response.headers["X-Content-Type-Options"] == "nosniff"

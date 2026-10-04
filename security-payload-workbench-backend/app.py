@@ -12,6 +12,9 @@ from flask_limiter.errors import RateLimitExceeded
 
 from hash_identifier import analyze_hashes
 
+CHAIN_MAX_STEPS = 10
+CHAIN_MAX_OUTPUT_BYTES = 64 * 1024
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024
 
@@ -188,6 +191,65 @@ def hash_text(text: str, algorithm: str):
         return True, digest, None
     except (TypeError, ValueError):
         return False, "", "Unable to hash input with the requested algorithm"
+
+
+CHAIN_OPERATIONS = {
+    "base64_encode": encode_base64,
+    "base64_decode": decode_base64,
+    "url_encode": encode_url,
+    "url_decode": decode_url,
+    "hex_encode": encode_hex,
+    "hex_decode": decode_hex,
+}
+
+
+def _chain_error(message):
+    return jsonify({"success": False, "result": "", "error": message}), 400
+
+
+@app.route('/api/chain', methods=['POST'])
+@public_api_rate_limit()
+def chain():
+    if not request.is_json:
+        return jsonify({"success": False, "result": "", "error": "Content-Type must be application/json"}), 415
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "result": "", "error": "Malformed JSON payload"}), 400
+    if not isinstance(data.get("input_text"), str):
+        return _chain_error("'input_text' must be provided as a string")
+    steps = data.get("steps")
+    if not isinstance(steps, list):
+        return _chain_error("'steps' must be a list")
+    if not steps:
+        return _chain_error("'steps' must contain at least one operation")
+    if len(steps) > CHAIN_MAX_STEPS:
+        return _chain_error(f"'steps' must contain at most {CHAIN_MAX_STEPS} operations")
+
+    for step in steps:
+        if not isinstance(step, dict) or set(step) != {"operation"} or not isinstance(step.get("operation"), str):
+            return _chain_error("Each step must contain only an 'operation' string")
+        if step["operation"] not in CHAIN_OPERATIONS:
+            return _chain_error("A step contains an unsupported operation")
+
+    current = data["input_text"]
+    results = []
+    for index, step in enumerate(steps):
+        operation = step["operation"]
+        try:
+            transformed = CHAIN_OPERATIONS[operation](current)
+            if operation in {"base64_decode", "hex_decode"}:
+                success, output, _error = transformed
+                if not success:
+                    return jsonify({"success": False, "result": "", "error": f"Step {index} failed", "steps": results, "failed_step": index}), 400
+            else:
+                output = transformed
+            if len(output.encode("utf-8")) > CHAIN_MAX_OUTPUT_BYTES:
+                return jsonify({"success": False, "result": "", "error": f"Step {index} output exceeded the 64KB limit", "steps": results, "failed_step": index}), 400
+        except Exception:
+            return jsonify({"success": False, "result": "", "error": f"Step {index} failed", "steps": results, "failed_step": index}), 400
+        current = output
+        results.append({"operation": operation, "output": output})
+    return jsonify({"steps": results, "final": current})
 
 
 @app.route('/api/process', methods=['POST'])

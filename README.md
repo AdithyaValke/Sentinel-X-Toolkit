@@ -26,7 +26,7 @@ Payload Workbench is a security-focused utility workspace for encoding and decod
 
 ## Features
 
-The shared application shell provides navigation to the five main sections, a global search for pages and tools, responsive sidebar navigation, light/dark/system theme selection, and a status indicator that checks the Flask health endpoint.
+The shared application shell provides navigation to the workspace tools, a global search for pages and tools, responsive sidebar navigation, light/dark/system theme selection, and a status indicator that checks the Flask health endpoint.
 
 ### Dashboard
 
@@ -35,6 +35,10 @@ The dashboard links to Payload Tools, Hash Tools, Identify Hash, and Security La
 ### Payload Tools
 
 Encode and decode UTF-8 text using Base64, URL percent-encoding, and hexadecimal. Each operation is sent to the Flask API. The page includes input and output buffers, character counts, validation and request status, clear/copy controls, and the configured API health status.
+
+### Chain Builder
+
+Build ordered pipelines of up to 10 Base64, URL, and hex string transformations. Outputs are shown after each successful step, with copy controls and quick presets. Each request has a 10 KiB body limit; a step output above 64 KiB is rejected.
 
 ### Hash Tools
 
@@ -76,13 +80,13 @@ Dependency versions are declared in the dashboard package.json, pnpm-lock.yaml, 
 
 ## Architecture and API
 
-The browser calls the Flask service using the base URL in NEXT_PUBLIC_API_URL. Payload/hash processing uses POST /api/process; hash-format analysis also has a dedicated POST /api/identify-hash endpoint. The frontend health indicator calls GET /health. Security Lab indicator sanitization and reference generation are client-side.
+The browser calls the Flask service using the base URL in NEXT_PUBLIC_API_URL. Payload/hash processing uses POST /api/process; operation pipelines use POST /api/chain; hash-format analysis also has a dedicated POST /api/identify-hash endpoint. The frontend health indicator calls GET /health. Security Lab indicator sanitization and reference generation are client-side.
 
 ~~~mermaid
 flowchart LR
     U[Browser] --> N[Next.js frontend]
     N -->|GET /health| F[Flask API]
-    N -->|POST /api/process| F
+    N -->|POST /api/process and /api/chain| F
     N -->|POST /api/identify-hash| F
     F -->|Shared rate-limit state in production| R[(Redis-compatible store)]
     N -. local-only tools .-> L[IoC sanitizer and reference generator]
@@ -96,7 +100,7 @@ render.yaml configures the backend root directory, install/start commands, and /
 .
 ├── README.md
 ├── render.yaml
-├── security-payload-workbench-backend/
+    ├── security-payload-workbench-backend/
 │   ├── app.py
 │   ├── hash_identifier.py
 │   ├── requirements.txt
@@ -114,7 +118,7 @@ render.yaml configures the backend root directory, install/start commands, and /
     └── .env.example
 ~~~
 
-Frontend routes are /dashboard, /payload-tools, /hash-tools, /identify-hash, and /security-lab.
+Frontend routes are /dashboard, /payload-tools, /chain-builder, /hash-tools, /identify-hash, and /security-lab.
 
 ## Prerequisites
 
@@ -218,6 +222,22 @@ Accepts hash (string); input_text is also accepted as a fallback field. Empty in
 
 Candidate identification uses format clues and structured prefixes. It does not verify a candidate by hashing a known input.
 
+### POST /api/chain
+
+Accepts `input_text` (string) and `steps` (a non-empty array of at most 10 objects, each containing only an `operation` string). Allowed operations are `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, and `hex_decode`. Each transform reuses the corresponding `/api/process` implementation and feeds its string result into the next step. Hashing and hash identification are excluded.
+
+~~~json
+{"input_text":"hello world","steps":[{"operation":"url_encode"},{"operation":"base64_encode"}]}
+~~~
+
+A successful response contains each ordered result and the final value:
+
+~~~json
+{"steps":[{"operation":"url_encode","output":"hello%20world"},{"operation":"base64_encode","output":"aGVsbG8lMjB3b3JsZA=="}],"final":"aGVsbG8lMjB3b3JsZA=="}
+~~~
+
+Invalid requests, failed transforms, or output above 64 KiB UTF-8 at any step return HTTP 400. Step failures identify the zero-based step index; runtime errors use generic messages. Failed execution responses also include completed `steps` and `failed_step` so the UI can preserve earlier outputs.
+
 ### HTTP errors
 
 - **400 Bad Request:** malformed/missing/invalid fields, unsupported operations/algorithms, empty identification input, or invalid Base64/hex.
@@ -233,7 +253,7 @@ Error responses use the JSON shape { "success": false, "result": "", "error": "<
 ## Security and responsible use
 
 - Flask-CORS allows only explicit HTTP(S) origins. The Render deployment requires FRONTEND_ORIGIN; wildcard and path-bearing origins are rejected.
-- /api/process and /api/identify-hash share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
+- /api/process, /api/chain, and /api/identify-hash share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. One chain call counts as one request. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
 - In Render mode, the limiter validates the single CF-Connecting-IP address as the client IP and does not trust X-Forwarded-For. If that trusted header is missing or invalid, the request fails with HTTP 503. Outside Render, local/test use the socket peer address and do not trust forwarded headers.
 - The request body is capped at 10 KiB; API inputs and required fields are validated, and unexpected server errors return a generic response.
 - The app does not execute Security Lab output or initiate network connections for generated references. Manually running a generated reachability check is a separate action and can contact the entered host.
@@ -259,7 +279,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ~~~
 
-The backend test suite uses pytest and Flask's test client. It covers processing operations, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, route mapping, search, API contracts, and latest-request behavior.
+The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
 
 ## Deployment
 

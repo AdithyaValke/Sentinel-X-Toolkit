@@ -1,7 +1,43 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { callBackend, checkBackendHealth } from '../lib/api.ts'
-import { PAYLOAD_OPERATION_MAP } from '../lib/payload-operations.ts'
+import { callBackend, callChain, checkBackendHealth } from '../lib/api.ts'
+import { addChainStep, CHAIN_MAX_STEPS, CHAIN_OPERATION_DESCRIPTIONS, CHAIN_OPERATION_LABELS, CHAIN_REQUEST_MAX_BYTES, isChainResponse, moveChainStep, PAYLOAD_OPERATION_MAP, removeChainStep, serializedChainRequestBytes } from '../lib/payload-operations.ts'
+
+test('chain helpers add, remove, reorder, and enforce the step limit', () => {
+  const steps = [{ operation: 'url_encode' }, { operation: 'hex_encode' }]
+  assert.deepEqual(moveChainStep(steps, 1, -1), [{ operation: 'hex_encode' }, { operation: 'url_encode' }])
+  assert.deepEqual(removeChainStep(steps, 0), [{ operation: 'hex_encode' }])
+  assert.equal(addChainStep(Array.from({ length: CHAIN_MAX_STEPS }, () => ({ operation: 'hex_encode' })), 'url_decode').length, CHAIN_MAX_STEPS)
+  assert.equal(addChainStep(steps, 'url_decode').length, 3)
+  assert.equal(isChainResponse({ steps: [{ operation: 'url_encode', output: 'hi' }], final: 'hi' }), true)
+  assert.equal(isChainResponse({ steps: [{ operation: 7, output: 'hi' }], final: 'hi' }), false)
+})
+
+test('chain labels and request size use the API operation names and serialized JSON bytes', () => {
+  assert.equal(CHAIN_OPERATION_LABELS.base64_encode, 'Base64 Encode')
+  assert.equal(CHAIN_OPERATION_LABELS.url_decode, 'URL Decode')
+  assert.equal(CHAIN_OPERATION_LABELS.hex_encode, 'Hex Encode')
+  assert.equal(CHAIN_OPERATION_DESCRIPTIONS.hex_decode, 'Decode Hex to text')
+  assert.equal(serializedChainRequestBytes('☃', [{ operation: 'url_encode' }]), new TextEncoder().encode(JSON.stringify({ input_text: '☃', steps: [{ operation: 'url_encode' }] })).byteLength)
+  assert.equal(CHAIN_REQUEST_MAX_BYTES, 10 * 1024)
+})
+
+test('chain client sends the ordered operations and validates response shape', async () => {
+  const originalFetch = globalThis.fetch
+  installBrowserTimerShim()
+  try {
+    let body = ''
+    globalThis.fetch = async (_input, init) => {
+      body = String(init?.body)
+      return new Response(JSON.stringify({ steps: [{ operation: 'url_encode', output: 'hello' }], final: 'hello' }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    const response = await callChain('input', [{ operation: 'url_encode' }])
+    assert.deepEqual(JSON.parse(body), { input_text: 'input', steps: [{ operation: 'url_encode' }] })
+    assert.equal(response.final, 'hello')
+    globalThis.fetch = async () => new Response(JSON.stringify({ steps: [], final: 7 }), { status: 200, headers: { 'content-type': 'application/json' } })
+    await assert.rejects(callChain('input', [{ operation: 'url_encode' }]), /invalid response/i)
+  } finally { globalThis.fetch = originalFetch; Reflect.deleteProperty(globalThis, 'window') }
+})
 
 function installBrowserTimerShim() {
   Object.defineProperty(globalThis, 'window', {

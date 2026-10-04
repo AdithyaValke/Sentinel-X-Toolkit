@@ -129,6 +129,22 @@
 
 @layer components {
   .app-shell { @apply flex min-h-screen w-full; }
+  .chain-step-list { scrollbar-width: thin; scrollbar-color: rgb(34 211 238 / .42) transparent; }
+  .chain-step-list::-webkit-scrollbar { width: 7px; }
+  .chain-step-list::-webkit-scrollbar-track { background: transparent; }
+  .chain-step-list::-webkit-scrollbar-thumb { border-radius: 999px; background: rgb(34 211 238 / .34); }
+  html.light .chain-step-list { scrollbar-color: rgb(8 145 178 / .5) transparent; }
+  html.light .chain-step-list::-webkit-scrollbar-thumb { background: rgb(8 145 178 / .4); }
+  .chain-output-enter { animation: chain-output-enter 180ms ease-out both; }
+  @keyframes chain-output-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .chain-output-enter { animation: none; } }
+  @media (min-width: 1280px) {
+    .app-shell-chain .app-main-column { height: 100dvh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .app-shell-chain .app-header { flex: none; }
+  }
+  @media (min-width: 1280px) and (max-height: 700px) {
+    .app-shell-chain .app-main-column { height: auto; min-height: 100dvh; overflow: visible; }
+  }
   .app-shell-dark { @apply bg-[#080b12] text-slate-100; }
   .app-shell-light { @apply bg-slate-50 text-slate-900; }
   .app-sidebar { @apply fixed inset-y-0 left-0 z-40 flex w-72 max-w-[calc(100vw-2rem)] -translate-x-full flex-col border-r px-4 py-5 transition-[width,transform] duration-200 lg:sticky lg:top-0 lg:h-screen lg:max-w-none lg:translate-x-0; }
