@@ -279,10 +279,10 @@
   main { @apply min-h-screen transition-colors duration-300; }
   main.dark { @apply bg-slate-950 text-slate-100; }
   main.light { @apply bg-slate-50 text-slate-900; }
-  .workbench-shell { @apply relative mx-auto flex min-h-screen w-full max-w-[1480px] flex-col overflow-x-hidden px-4 py-4 sm:px-8 sm:py-5 lg:min-h-[calc(100vh-76px)] lg:px-10 lg:py-7; }
-  .workbench-shell::before { content: ''; @apply pointer-events-none absolute inset-0 opacity-40; background-image: linear-gradient(to right, rgb(34 211 238 / 0.035) 1px, transparent 1px), linear-gradient(to bottom, rgb(34 211 238 / 0.035) 1px, transparent 1px); background-size: 2.5rem 2.5rem; mask-image: linear-gradient(to bottom, black, transparent 78%); }
+  .workbench-shell { @apply relative mx-auto flex min-h-screen w-full max-w-[1480px] flex-col overflow-x-hidden px-3 py-4 sm:px-6 sm:py-5 lg:min-h-[calc(100vh-76px)] lg:px-7 lg:py-6; }
+  .workbench-shell::before { content: ''; @apply pointer-events-none absolute inset-0 opacity-25; background-image: linear-gradient(to right, rgb(34 211 238 / 0.035) 1px, transparent 1px), linear-gradient(to bottom, rgb(34 211 238 / 0.035) 1px, transparent 1px); background-size: 2.5rem 2.5rem; mask-image: linear-gradient(to bottom, black, transparent 68%); }
   .workbench-header, .workspace, .workbench-footer { @apply relative; }
-  .workbench-header { @apply mb-6 flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between; }
+  .workbench-header { @apply mb-5 flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between; }
   .workbench-header .theme-toggle { @apply min-h-11 self-start sm:self-auto; }
   .dark .workbench-header, .dark .workbench-footer { @apply border-slate-800; }
   .light .workbench-header, .light .workbench-footer, html.light .workbench-header, html.light .workbench-footer { @apply border-slate-200; }
@@ -291,7 +291,7 @@
   .eyebrow svg { @apply size-4; }
   h1 { @apply font-mono text-3xl font-bold tracking-tight sm:text-5xl; }
   h1 span { @apply text-cyan-600 dark:text-cyan-400; }
-  .workbench-header p { @apply mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400; }
+  .workbench-header p { @apply mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400; }
   .header-tools { @apply flex items-center gap-2 self-start sm:self-auto; }
   .processing-pill { @apply flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300; }
   .processing-pill span { @apply size-1.5 rounded-full bg-emerald-500; }
@@ -299,13 +299,13 @@
   .dark .theme-toggle { @apply border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-400/60 hover:text-cyan-300; }
   .light .theme-toggle { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:text-cyan-700; }
   .theme-toggle svg { @apply size-3.5; }
-  .workspace { @apply grid flex-1 gap-4 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] xl:gap-7; }
-  .operations { @apply flex flex-col justify-center rounded-2xl border p-3 lg:border-transparent lg:bg-transparent lg:p-0; }
-  .dark .operations { @apply border-slate-800/80 bg-slate-950/35; }
-  .light .operations, html.light .operations { @apply border-slate-200 bg-white/70; }
+  .workspace { @apply grid flex-1 gap-3 rounded-xl border p-3 sm:gap-4 sm:p-4 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_240px_minmax(0,1fr)] lg:gap-3 xl:grid-cols-[minmax(0,1fr)_248px_minmax(0,1fr)] xl:gap-4; }
+  .dark .workspace { @apply border-slate-800/80 bg-slate-950/25; }
+  .light .workspace, html.light .workspace { @apply border-slate-200 bg-white/50; }
+  .operations { @apply flex flex-col justify-center px-0.5 py-2 lg:px-0; }
   .section-label { @apply mb-3 px-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500; }
-  .operation-grid { @apply grid grid-cols-2 gap-2.5; }
-  .operation-button { @apply flex min-h-16 flex-col items-start justify-center gap-1.5 rounded-xl border px-3 text-left font-mono text-[10px] font-medium transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background; }
+  .operation-grid { @apply grid grid-cols-2 gap-2; }
+  .operation-button { @apply flex min-h-[60px] flex-col items-start justify-center gap-1.5 rounded-xl border px-3 text-left font-mono text-[10px] font-medium transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background; }
   .dark .operation-button, .dark .hash-tile { @apply border-slate-800 bg-slate-900/80 text-slate-400 hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:text-cyan-200; }
   .light .operation-button, .light .hash-tile, html.light .operation-button, html.light .hash-tile { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:bg-cyan-50 hover:text-cyan-700; }
   .operation-button svg, .hash-tile svg { @apply size-4; }
@@ -315,7 +315,7 @@
   .hash-label { @apply mt-4; }
   .hash-tile { @apply flex items-center gap-2 rounded-xl border px-3; }
   .hash-select { @apply min-h-11 w-full bg-transparent font-mono text-[11px] outline-none; }
-  .buffer-card { @apply flex min-h-[280px] flex-col rounded-2xl border p-4 shadow-xl sm:min-h-[320px] sm:p-5 lg:min-h-0 lg:h-full; }
+  .buffer-card { @apply flex min-h-[320px] flex-col rounded-xl border p-3.5 shadow-xl sm:min-h-[360px] sm:p-4 lg:min-h-0 lg:h-full; }
   @media (max-width: 1023px) {
     .workspace { @apply flex flex-col; }
     .operations { @apply order-2; }
@@ -324,23 +324,24 @@
   }
   @media (max-width: 480px) {
     .workbench-shell { @apply px-3 py-4; }
+    .workspace { @apply rounded-lg p-2.5; }
     .operation-button { @apply min-h-14 px-2.5; }
-    .buffer-card { @apply min-h-[250px] p-3.5; }
+    .buffer-card { @apply min-h-[250px] p-3; }
   }
-  .dark .buffer-card { @apply border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 shadow-black/30; }
+  .dark .buffer-card { @apply border-slate-800 bg-slate-900/65 shadow-black/25; }
   .light .buffer-card, html.light .buffer-card { @apply border-slate-200 bg-white shadow-slate-200/70; }
   .buffer-heading { @apply mb-3 flex items-center justify-between; }
   .buffer-heading h2 { @apply flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-[0.18em]; }
   .buffer-heading h2 span { @apply flex size-7 items-center justify-center rounded-lg bg-cyan-500/10 text-[10px] text-cyan-600 dark:text-cyan-400; }
   .buffer-heading small { @apply font-mono text-[10px] uppercase tracking-wider text-slate-400; }
-  .buffer-textarea { @apply min-h-56 w-full flex-1 resize-none rounded-xl border p-4 font-mono text-sm leading-7 outline-none transition placeholder:text-slate-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/10 sm:min-h-64 lg:min-h-0; }
-  .dark .buffer-textarea { @apply border-slate-800 bg-slate-950/80 text-slate-200 placeholder:text-slate-700; }
+  .buffer-textarea { @apply min-h-56 w-full flex-1 resize-none rounded-lg border p-3.5 font-mono text-sm leading-7 outline-none transition placeholder:text-slate-400 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/10 sm:min-h-64 lg:min-h-0; }
+  .dark .buffer-textarea { @apply border-slate-800 bg-slate-950/75 text-slate-200 placeholder:text-slate-700; }
   .light .buffer-textarea, html.light .buffer-textarea { @apply border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-400; }
   .output-textarea { @apply text-cyan-700 dark:text-cyan-200; }
   .buffer-error { @apply border-red-400/70; }
   .buffer-meta { @apply mt-3 flex justify-between font-mono text-[10px] uppercase tracking-wider text-slate-400; }
   .error-text { @apply text-red-500; }
-  .workbench-footer { @apply mt-5 flex flex-col gap-3 border-t pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between; }
+  .workbench-footer { @apply mt-4 flex flex-col gap-3 border-t pt-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between; }
   .workbench-footer > div { @apply flex flex-wrap gap-4; }
   .footer-action, .workbench-footer a { @apply inline-flex min-h-11 items-center gap-1.5 transition hover:text-cyan-600 dark:hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40; }
   .footer-action svg { @apply size-3.5; }
