@@ -25,6 +25,7 @@ import {
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
 import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
 import { SecurityLabJwtPanel } from '@/components/security-lab-jwt-panel'
+import { cancelActivityDebounce, recordActivity, recordActivityDebounced } from '@/lib/activity'
 
 // ─── Payload Generator ───────────────────────────────────────────────────────
 
@@ -358,6 +359,7 @@ export function SecurityLab() {
 
   function handleProcessIoc(text: string, mode: 'defang' | 'refang') {
     if (!text.trim()) {
+      cancelActivityDebounce('ioc-defender')
       setIocOutput('')
       setIocError('')
       setIocType('Empty')
@@ -377,6 +379,7 @@ export function SecurityLab() {
         r = r.replace(/@/g, '[at]')
         r = r.replace(/___AT___/g, '[at]')
         setIocOutput(r)
+        recordActivityDebounced('ioc-defender', 'IoC Defender', mode, 'success', 'Indicator transformation completed')
       } else {
         let r = text.replace(/hxxps:\/\//gi, 'https://')
         r = r.replace(/hxxp:\/\//gi, 'http://')
@@ -385,9 +388,11 @@ export function SecurityLab() {
         r = r.replace(/\[at\]|\(@\)|\{@\}|\[AT\]/gi, '@')
         r = r.replace(/\[:\/\/\]/g, '://')
         setIocOutput(r)
+        recordActivityDebounced('ioc-defender', 'IoC Defender', mode, 'success', 'Indicator transformation completed')
       }
     } catch {
       setIocError('An error occurred while sanitizing the indicators.')
+      recordActivityDebounced('ioc-defender', 'IoC Defender', mode, 'failure', 'Indicator transformation failed')
     }
   }
 
@@ -429,12 +434,14 @@ export function SecurityLab() {
     if (!ipResult.valid || !portResult.valid) {
       setPgOutput('')
       setPgError('')
+      recordActivity(pgCategory === 'listener-reference' || pgCategory === 'socat-relay' ? 'Reference Generator' : 'Payload Generator', pgCategory.replace('-', ' '), 'failure', 'Reference generation failed')
       return
     }
     setPgError('')
     const result = generatePayload(pgIP.trim(), pgPort.trim(), pgPlatform, pgCategory)
     setPgOutput(result)
     setPgCopied(false)
+    recordActivity(pgCategory === 'listener-reference' || pgCategory === 'socat-relay' ? 'Reference Generator' : 'Payload Generator', pgCategory.replace('-', ' '), 'success', 'Reference generated')
   }
 
   async function copyPgOutput() {

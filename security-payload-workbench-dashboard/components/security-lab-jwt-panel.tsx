@@ -6,6 +6,7 @@ import {
   LockKeyhole, ShieldAlert, ShieldCheck, TriangleAlert,
 } from 'lucide-react'
 import { analyzeJwt, createSampleJwt, formatJwtRelativeTime, formatJsonForDisplay, verifyHmac, type JwtAnalysis, type JwtFinding, type JwtSeverity } from '@/lib/jwt-utils.ts'
+import { recordActivity } from '@/lib/activity'
 
 function ColoredJson({ value }: { value: unknown }) {
   const text = formatJsonForDisplay(value)
@@ -91,6 +92,15 @@ export function SecurityLabJwtPanel() {
     rightScrollRef.current?.scrollTo({ top: 0 })
   }, [token])
 
+  useEffect(() => {
+    if (!token.trim()) return
+    const timer = window.setTimeout(() => {
+      const result = analyzeJwt(token, Date.now())
+      recordActivity('JWT Analyzer', 'decode and analyze', result.ok ? 'success' : 'failure', result.ok ? 'JWT analysis completed' : 'JWT analysis failed')
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [token])
+
   async function copyText(value: string, key: string) {
     try {
       await navigator.clipboard.writeText(value)
@@ -120,6 +130,7 @@ export function SecurityLabJwtPanel() {
     setVerifying(true)
     const checked = await verifyHmac(token, secret)
     setVerification({ status: checked.status, explanation: checked.explanation })
+    recordActivity('JWT Analyzer', 'verify signature', checked.status === 'unsupported' ? 'failure' : 'success', checked.status === 'unsupported' ? 'JWT signature verification unavailable' : 'JWT signature verification completed')
     setVerifying(false)
   }
 

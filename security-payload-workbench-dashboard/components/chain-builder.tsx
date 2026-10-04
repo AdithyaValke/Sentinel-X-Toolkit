@@ -7,6 +7,7 @@ import {
   Trash2, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { recordActivity } from '@/lib/activity'
 import { callChain, type ChainResponse } from '@/lib/api'
 import {
   addChainStep, CHAIN_MAX_STEPS, CHAIN_OPERATIONS, CHAIN_OPERATION_DESCRIPTIONS,
@@ -143,10 +144,12 @@ export function ChainBuilder() {
     try {
       const response = await callChain(input, steps.map(({ operation }) => ({ operation })))
       setResult(response); setAnnounce(`Chain finished, ${response.steps.length} steps`)
+      recordActivity('Chain Builder', 'run chain', 'success', 'Transformation chain completed')
     } catch (reason) {
       const details = getErrorDetails(reason)
       setError(details.message); setPartial(details.partial); setFailedStep(details.failedStep)
       setAnnounce(details.message)
+      recordActivity('Chain Builder', 'run chain', 'failure', 'Transformation chain failed')
     } finally {
       setLoading(false)
       window.requestAnimationFrame(() => outputCardRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest' }))

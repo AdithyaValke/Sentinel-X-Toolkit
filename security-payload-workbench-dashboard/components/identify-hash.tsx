@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Clipboard, Fingerprint, Info, Layers3, Loader2, ScanSearch, ShieldCheck, Sparkles } from 'lucide-react'
 import { callBackend, type BackendResponse } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
+import { recordActivity } from '@/lib/activity'
 
 const HASH_EXAMPLES = [
   { label: 'MD5 (32 hex)', detail: '32 characters', value: '5d41402abc4b2a76b9719d911017c592' },
@@ -35,11 +36,12 @@ export function IdentifyHash() {
     try {
       const response = await callBackend('identify_hash', value, null, request.signal)
       if (!latestRequest.current.isCurrent(request.id)) return
-      if (response.success) setAnalysis(response)
-      else { setAnalysis(null); setError(response.error ?? 'The operation failed.') }
+      if (response.success) { setAnalysis(response); recordActivity('Identify Hash', 'identify', 'success', 'Hash identification completed') }
+      else { setAnalysis(null); setError(response.error ?? 'The operation failed.'); recordActivity('Identify Hash', 'identify', 'failure', 'Hash identification failed') }
     } catch (caught) {
       if (!latestRequest.current.isCurrent(request.id)) return
       setAnalysis(null); setError(caught instanceof Error ? caught.message : 'The operation failed.')
+      recordActivity('Identify Hash', 'identify', 'failure', 'Hash identification failed')
     } finally { if (latestRequest.current.isCurrent(request.id)) setLoading(false) }
   }
 

@@ -14,6 +14,7 @@ import { callBackend } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
 import { PAYLOAD_OPERATION_MAP, type PayloadOperation } from '@/lib/payload-operations'
 import { useApiStatus } from '@/components/app-shell'
+import { recordActivity } from '@/lib/activity'
 
 const operations: { id: PayloadOperation; label: string; description: string; icon: typeof LockKeyhole }[] = [
   { id: 'base64-encode', label: 'Base64 Encode', description: 'Convert to Base64 format', icon: LockKeyhole },
@@ -50,14 +51,17 @@ export function PayloadTools() {
       if (!latestRequest.current.isCurrent(request.id)) return
       if (response.success) {
         setOutput(response.result)
+        recordActivity('Payload Tools', op.replace('-', ' '), 'success', 'Payload transformation completed')
       } else {
         setOutput('')
         setError(response.error ?? 'The operation failed.')
+        recordActivity('Payload Tools', op.replace('-', ' '), 'failure', 'Payload transformation failed')
       }
     } catch (e) {
       if (!latestRequest.current.isCurrent(request.id)) return
       setOutput('')
       setError(e instanceof Error ? e.message : 'The operation failed.')
+      recordActivity('Payload Tools', op.replace('-', ' '), 'failure', 'Payload transformation failed')
     } finally {
       if (latestRequest.current.isCurrent(request.id)) setLoading(false)
     }

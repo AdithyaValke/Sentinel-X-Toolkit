@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { Activity, ArrowUpRight, ChevronRight, Fingerprint, FlaskConical, Hash, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { useApiStatus } from '@/components/app-shell'
+import { useSyncExternalStore } from 'react'
+import { getActivityServerSnapshot, getActivitySnapshot, localActivityStore } from '@/lib/activity'
 
 const tools = [
   { title: 'Hash Converter', description: 'Generate secure hashes from raw text with the algorithm of your choice.', icon: Hash, accent: 'dashboard-icon-cyan', href: '/hash-tools', tag: 'Converter' },
@@ -11,14 +13,9 @@ const tools = [
   { title: 'Security Lab', description: 'Explore practical security utilities and validate suspicious input safely.', icon: FlaskConical, accent: 'dashboard-icon-emerald', href: '/security-lab', tag: 'Explore' },
 ]
 
-const activity = [
-  { title: 'SHA-256 hash generated', detail: 'Hash Converter', time: '12 min ago', tone: 'dashboard-dot-cyan' },
-  { title: 'Hash candidates identified', detail: 'Identify Hash Function', time: 'Yesterday', tone: 'dashboard-dot-violet' },
-  { title: 'Base64 payload decoded', detail: 'Payload Tools', time: '2 days ago', tone: 'dashboard-dot-amber' },
-]
-
 export function DashboardShell() {
   const apiStatus = useApiStatus()
+  const activity = useSyncExternalStore(localActivityStore.subscribe, getActivitySnapshot, getActivityServerSnapshot)
   const apiStatusLabel = apiStatus === 'online' ? 'API online' : apiStatus === 'offline' ? 'API offline' : 'Checking API'
 
   return (
@@ -54,10 +51,10 @@ export function DashboardShell() {
         </div>
 
         <section className="dashboard-lower-grid" aria-label="Workspace overview">
-          <div className="dashboard-panel"><div className="dashboard-panel-heading"><div><p className="dashboard-section-kicker">Sample data</p><h2>Recent activity</h2></div><Activity aria-hidden="true" /></div>
-            <div className="dashboard-activity-list">{activity.map((item) => <div key={item.title} className="dashboard-activity-row"><span className={`dashboard-activity-dot ${item.tone}`} /><div className="dashboard-activity-copy"><p>{item.title}</p><span>{item.detail}</span></div><time>{item.time}</time></div>)}</div>
+          <div className="dashboard-panel"><div className="dashboard-panel-heading"><div><p className="dashboard-section-kicker">This browser</p><h2>Recent activity</h2></div><div className="flex items-center gap-3"><button type="button" className="dashboard-section-link" disabled={!activity.length} onClick={() => { if (window.confirm('Clear recent activity from this browser?')) localActivityStore.clear() }}>Clear activity</button><Activity aria-hidden="true" /></div></div>
+            <div className="dashboard-activity-list" aria-live="polite">{activity.length ? activity.map((item) => <div key={item.id} className="dashboard-activity-row"><span className={`dashboard-activity-dot ${item.outcome === 'success' ? 'dashboard-dot-cyan' : 'dashboard-dot-amber'}`} /><div className="dashboard-activity-copy min-w-0"><p>{item.description}</p><span>{item.tool} · {item.operation} · {item.outcome}</span></div><time dateTime={item.timestamp}>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.timestamp))}</time></div>) : <p className="py-5 text-sm text-muted-foreground">Completed tool operations will appear here.</p>}</div>
           </div>
-          <div className="dashboard-panel"><p className="dashboard-section-kicker">Workspace status</p><h2>Ready when you are</h2><p className="dashboard-status-copy">Your tools run through the existing Flask API. Activity shown here is sample data until persistence is added.</p>
+          <div className="dashboard-panel"><p className="dashboard-section-kicker">Workspace status</p><h2>Ready when you are</h2><p className="dashboard-status-copy">Activity is stored in this browser only.</p>
             <div className="dashboard-protected"><span><ShieldCheck aria-hidden="true" /></span><div><p>Protected workspace</p><small>No session required</small></div></div>
           </div>
         </section>

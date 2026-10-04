@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Clipboard, Eraser, Hash, ShieldCheck } from 'lucide-react'
 import { callBackend, type HashAlgorithm } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
+import { recordActivity } from '@/lib/activity'
 
 const HASH_OPTIONS: Array<{ value: HashAlgorithm; label: string; detail: string }> = [
   { value: 'MD5', label: 'MD5', detail: 'Legacy compatibility' },
@@ -54,14 +55,17 @@ export function HashConverter() {
         if (!latestRequest.current.isCurrent(request.id)) return
         if (response.success) {
           setOutput(response.result)
+          recordActivity('Hash Converter', selectedHash, 'success', 'Hash generated')
         } else {
           setOutput('')
           setError(response.error ?? 'The operation failed.')
+          recordActivity('Hash Converter', selectedHash, 'failure', 'Hash generation failed')
         }
       } catch (requestError) {
         if (!latestRequest.current.isCurrent(request.id)) return
         setOutput('')
         setError(requestError instanceof Error ? requestError.message : 'The operation failed.')
+        recordActivity('Hash Converter', selectedHash, 'failure', 'Hash generation failed')
       } finally {
         if (latestRequest.current.isCurrent(request.id)) setLoading(false)
       }
