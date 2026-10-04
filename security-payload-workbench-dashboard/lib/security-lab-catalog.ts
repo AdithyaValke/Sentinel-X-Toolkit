@@ -13,7 +13,7 @@ export const JWT_DECODER_CATALOG_ENTRY = {
   tab: 'jwt-decoder',
 } as const
 
-export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'planned'] as const
+export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder'] as const
 export type SecurityLabTabId = typeof SECURITY_LAB_TAB_IDS[number]
 
 export function parseSecurityLabTab(value: unknown): SecurityLabTabId {

@@ -8,24 +8,18 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
-  ChevronRight,
   Clipboard,
-  Code2,
   Cpu,
   Eraser,
-  FileCode,
   FlaskConical,
   Info,
   KeyRound,
-  Layers,
   Lock,
   Monitor,
-  Radio,
   RefreshCw,
   Shield,
   ShieldCheck,
   Terminal,
-  Wifi,
   Zap,
 } from 'lucide-react'
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
@@ -525,7 +519,6 @@ export function SecurityLab() {
               { id: 'defanger', label: 'IoC Defanger & Sanitizer' },
               { id: 'payload-generator', label: PAYLOAD_GENERATOR_CATALOG_ENTRY.title },
               { id: 'jwt-decoder', label: JWT_DECODER_CATALOG_ENTRY.title },
-              { id: 'planned', label: 'Planned Modules' },
             ] as const
           ).map(({ id, label }) => (
             <button
@@ -632,31 +625,6 @@ export function SecurityLab() {
                   </Link>
                 </article>
 
-                {/* Card: Planned Modules */}
-                <article className="flex flex-col rounded-2xl border border-dashed border-white/20 bg-white/[0.015] p-6">
-                  <div className="flex items-start justify-between">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-slate-800 text-slate-400">
-                      <Layers className="size-5" />
-                    </span>
-                    <span className="rounded bg-white/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-                      Roadmap
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-slate-300">
-                    Upcoming Security Modules
-                  </h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    PCAP frame analysis and YARA rule syntax verification are planned for
-                    subsequent releases.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => selectTab('planned')}
-                    className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-medium text-slate-400 transition hover:border-white/20 hover:text-slate-200"
-                  >
-                    View Roadmap <ChevronRight className="size-3.5" />
-                  </button>
-                </article>
               </div>
             </div>
 
@@ -1140,102 +1108,6 @@ export function SecurityLab() {
         )}
 
         {activeTab === 'jwt-decoder' && <SecurityLabJwtPanel />}
-
-        {/* ════════════════════════════════════════════════════════════════════
-            TAB 4: PLANNED MODULES
-        ════════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'planned' && (
-          <div className="mt-8 space-y-6">
-            <header>
-              <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-slate-500">
-                <Layers className="size-3.5" />
-                Security Roadmap
-              </div>
-              <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-                Upcoming Security Modules
-              </h2>
-              <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-400 sm:text-sm">
-                These modules are under active design for future phases of Payload Workbench. They
-                are clearly marked as unreleased and non-functional in keeping with our strict
-                truthful-state policy.
-              </p>
-            </header>
-
-            <div className="grid gap-6 sm:grid-cols-2">
-              {/* Planned: PCAP Inspector */}
-              <article className="rounded-2xl border border-dashed border-white/20 bg-[#0d121c]/60 p-6 sm:p-8">
-                <div className="flex items-start justify-between">
-                  <div className="flex size-12 items-center justify-center rounded-xl bg-slate-800 text-cyan-300">
-                    <Radio className="size-6" />
-                  </div>
-                  <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 font-mono text-[10px] font-semibold text-amber-300">
-                    Phase 2 Planned
-                  </span>
-                </div>
-                <h3 className="mt-5 text-lg font-bold text-white">
-                  Offline PCAP &amp; Frame Inspector
-                </h3>
-                <p className="mt-2 text-xs leading-6 text-slate-400">
-                  Dissect client-side packet captures, inspect TLS handshake ClientHello
-                  extensions, and review Ethernet/IP headers offline without sending telemetry to
-                  external services.
-                </p>
-                <div className="mt-6 rounded-xl border border-white/5 bg-black/40 p-6 text-center">
-                  <Wifi className="mx-auto size-8 text-slate-600" />
-                  <p className="mt-2 text-xs font-semibold text-slate-300">
-                    Module Not Implemented Yet
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Scheduled for Phase 2. Core packet decoding engine is in development.
-                  </p>
-                  <button
-                    type="button"
-                    disabled
-                    className="mt-4 inline-flex min-h-10 cursor-not-allowed items-center justify-center rounded-xl border border-white/10 px-4 py-2 text-xs text-slate-500"
-                  >
-                    Feature in Development
-                  </button>
-                </div>
-              </article>
-
-              {/* Planned: YARA Validator */}
-              <article className="rounded-2xl border border-dashed border-white/20 bg-[#0d121c]/60 p-6 sm:p-8">
-                <div className="flex items-start justify-between">
-                  <div className="flex size-12 items-center justify-center rounded-xl bg-slate-800 text-violet-300">
-                    <FileCode className="size-6" />
-                  </div>
-                  <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 font-mono text-[10px] font-semibold text-amber-300">
-                    Phase 2 Planned
-                  </span>
-                </div>
-                <h3 className="mt-5 text-lg font-bold text-white">
-                  YARA Rule Syntax Validator
-                </h3>
-                <p className="mt-2 text-xs leading-6 text-slate-400">
-                  Verify YARA signature formatting, string definitions, and conditional clauses
-                  against standard syntax specifications to accelerate incident-response rule
-                  authoring.
-                </p>
-                <div className="mt-6 rounded-xl border border-white/5 bg-black/40 p-6 text-center">
-                  <Code2 className="mx-auto size-8 text-slate-600" />
-                  <p className="mt-2 text-xs font-semibold text-slate-300">
-                    Module Not Implemented Yet
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Scheduled for Phase 2. WebAssembly-based YARA AST parser is being evaluated.
-                  </p>
-                  <button
-                    type="button"
-                    disabled
-                    className="mt-4 inline-flex min-h-10 cursor-not-allowed items-center justify-center rounded-xl border border-white/10 px-4 py-2 text-xs text-slate-500"
-                  >
-                    Feature in Development
-                  </button>
-                </div>
-              </article>
-            </div>
-          </div>
-        )}
 
         {/* ── Page footer ───────────────────────────────────────────────────── */}
         <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.08] pt-6 text-xs text-slate-500 sm:flex-row">
