@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { GLOBAL_SEARCH_INDEX, searchGlobal } from '../lib/global-search.ts'
-import { PAYLOAD_GENERATOR_CATALOG_ENTRY } from '../lib/security-lab-catalog.ts'
+import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_LAB_TAB_IDS, parseSecurityLabTab } from '../lib/security-lab-catalog.ts'
 
 test('indexes all main destinations and offers concise empty-query suggestions', () => {
   assert.deepEqual(GLOBAL_SEARCH_INDEX.map(({ href }) => href), [
-    '/dashboard', '/security-lab?tab=payload-generator', '/payload-tools', '/hash-tools', '/identify-hash', '/security-lab',
+    '/dashboard', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools', '/hash-tools', '/identify-hash', '/security-lab',
   ])
   assert.deepEqual(searchGlobal('').map(({ href }) => href), [
-    '/dashboard', '/security-lab?tab=payload-generator', '/payload-tools', '/hash-tools',
+    '/dashboard', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools',
   ])
 })
 
@@ -26,6 +26,20 @@ test('exposes the existing safe Payload Generator in the Security Lab catalog an
   assert.equal(searchGlobal('payload')[0]?.href, generator.href)
   assert.equal(searchGlobal('Payload Tools')[0]?.href, '/payload-tools')
   assert.equal(searchGlobal('connectivity test')[0]?.href, generator.href)
+})
+
+test('parses every Security Lab tab id and falls back for unknown or missing values', () => {
+  for (const tab of SECURITY_LAB_TAB_IDS) assert.equal(parseSecurityLabTab(tab), tab)
+  assert.equal(parseSecurityLabTab('unknown'), 'overview')
+  assert.equal(parseSecurityLabTab(null), 'overview')
+})
+
+test('indexes JWT Decoder from its catalog entry and finds it for jwt queries', () => {
+  const jwt = GLOBAL_SEARCH_INDEX.find(({ title }) => title === JWT_DECODER_CATALOG_ENTRY.title)
+  assert.ok(jwt)
+  assert.equal(jwt.href, '/security-lab?tab=jwt-decoder')
+  assert.equal(jwt.description, JWT_DECODER_CATALOG_ENTRY.description)
+  assert.equal(searchGlobal('jwt')[0]?.href, JWT_DECODER_CATALOG_ENTRY.href)
 })
 
 test('matches descriptions and verified tool synonyms', () => {

@@ -53,10 +53,12 @@ Identify Hash accepts up to 50 non-empty lines per request.
 
 ### Security Lab
 
-The Security Lab has an overview/catalog, an **IoC Defanger & Sanitizer** tool, a **Payload Generator**, and a **Planned Modules** tab.
+The Security Lab has an overview/catalog, an **IoC Defanger & Sanitizer** tool, a **Payload Generator**, a **JWT Decoder** tab, and a **Planned Modules** tab.
 
 - **IoC Defanger & Sanitizer** detects simple indicator patterns (such as IP addresses, email addresses, and domains) and locally defangs or refangs text. It replaces URL schemes and separators such as dots and @; it does not call the Flask API.
 - **Payload Generator (reference generator)** validates an IP address and port, then renders platform-specific TCP connectivity, port-open, or HTTP reachability examples. Listener setup and socat relay outputs are static, commented reference templates. Generation is local in the browser: the application does not execute the displayed commands or make network connections. If a user copies and runs a connectivity example, that example can contact its configured target; use only authorized lab systems.
+- **JWT Decoder and Analyzer** decodes a pasted JWT in the browser and reviews the header, claims, timestamps, signature algorithm, key-source headers, key ID, and sensitive-looking payload keys. It flags unsigned/empty signatures, expired tokens, future nbf/iat values, non-numeric timestamps, missing exp/iss/aud/sub claims, lifetimes longer than one year, unexpected token type, HMAC shared-secret algorithms, and asymmetric algorithm policy. It also warns about jku, x5u, jwk, x5c, kid, and payload keys that look like passwords, secrets, SSNs, or card data. It is a defensive aid, not a token validator or a security guarantee.
+- JWT contents are Base64URL encoded, not encrypted. Decoding and optional HMAC verification use browser-side code and Web Crypto only. The pasted token and verification secret remain in the mounted panel's React state; they are not sent to a server or stored in browser persistence. HMAC verification supports HS256, HS384, and HS512 only; asymmetric algorithms require a public key and are not verified by this panel. A matching HMAC signature does not establish that the issuer, audience, claims, or authorization policy are trustworthy.
 - **Planned Modules** currently shows PCAP Inspector and YARA Validator as unreleased roadmap items. They are informational cards, not working tools.
 
 The global search supports title/description/keyword matching and keyboard navigation. Ctrl+K or ⌘K focuses search; arrow keys move through results, Enter opens the selected result, and Escape closes the result list. Theme selection is saved in browser storage and follows the operating-system preference when set to System.
@@ -66,7 +68,7 @@ The global search supports title/description/keyword matching and keyboard navig
 - Frontend: [https://payload-workbench.vercel.app](https://payload-workbench.vercel.app)
 - Flask health endpoint: [https://payload-workbench.onrender.com/health](https://payload-workbench.onrender.com/health)
 
-The frontend deployment URLs are provided for this project; their current availability is not guaranteed by this repository. Payload encoding/decoding, hashing, hash identification, and the shared API health indicator require the Flask backend to be reachable. The IoC sanitizer and Payload Generator render their output locally.
+The frontend deployment URLs are provided for this project; their current availability is not guaranteed by this repository. Payload encoding/decoding, hashing, hash identification, and the shared API health indicator require the Flask backend to be reachable. The IoC sanitizer, Payload Generator, and JWT Decoder operate locally in the browser.
 
 ## Technology stack
 
@@ -279,7 +281,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ~~~
 
-The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
+The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, JWT parsing/findings/timestamps/HMAC verification, Security Lab tab parsing, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
 
 ## Deployment
 

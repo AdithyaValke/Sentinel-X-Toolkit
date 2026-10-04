@@ -17,6 +17,7 @@ import {
   FileCode,
   FlaskConical,
   Info,
+  KeyRound,
   Layers,
   Lock,
   Monitor,
@@ -29,7 +30,8 @@ import {
   Zap,
 } from 'lucide-react'
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
-import { PAYLOAD_GENERATOR_CATALOG_ENTRY } from '@/lib/security-lab-catalog'
+import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
+import { SecurityLabJwtPanel } from '@/components/security-lab-jwt-panel'
 
 // ─── Payload Generator ───────────────────────────────────────────────────────
 
@@ -297,14 +299,11 @@ const SAMPLE_IOCS = [
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-type SecurityLabTab = 'overview' | 'defanger' | 'payload-generator' | 'planned'
+type SecurityLabTab = SecurityLabTabId
 
 function SecurityLabSearchTabSync({ onTabChange }: { onTabChange: (tab: SecurityLabTab) => void }) {
   const searchParams = useSearchParams()
-  const requestedTab = searchParams.get('tab')
-  const tab: SecurityLabTab = requestedTab === 'defanger' || requestedTab === 'payload-generator' || requestedTab === 'planned'
-    ? requestedTab
-    : 'overview'
+  const tab = parseSecurityLabTab(searchParams.get('tab'))
 
   useEffect(() => {
     onTabChange(tab)
@@ -518,7 +517,7 @@ export function SecurityLab() {
             </h1>
             <p className="mt-4 text-sm leading-6 text-slate-300 sm:text-base sm:leading-7">
               An interactive defensive analysis environment for indicator sanitization (IoC
-              defanging), reference payload generation, and security tooling — without executing
+              defanging), JWT decoding, reference payload generation, and security tooling — without executing
               live commands or initiating network connections.
             </p>
             <div className="mt-6 flex flex-wrap gap-2 text-xs">
@@ -546,6 +545,7 @@ export function SecurityLab() {
               { id: 'overview', label: 'Overview & Catalog' },
               { id: 'defanger', label: 'IoC Defanger & Sanitizer' },
               { id: 'payload-generator', label: PAYLOAD_GENERATOR_CATALOG_ENTRY.title },
+              { id: 'jwt-decoder', label: JWT_DECODER_CATALOG_ENTRY.title },
               { id: 'planned', label: 'Planned Modules' },
             ] as const
           ).map(({ id, label }) => (
@@ -631,6 +631,19 @@ export function SecurityLab() {
                     className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
                   >
                     Open Payload Generator <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </article>
+
+                {/* Card: JWT Decoder */}
+                <article className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-emerald-400/40 hover:bg-[#101724]">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/20"><KeyRound className="size-5" /></span>
+                    <span className="rounded bg-emerald-400/10 px-2 py-0.5 text-right font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Local Analyzer</span>
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-white">{JWT_DECODER_CATALOG_ENTRY.title}</h3>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{JWT_DECODER_CATALOG_ENTRY.description} Token data stays in this browser tab.</p>
+                  <Link href={JWT_DECODER_CATALOG_ENTRY.href} className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                    Open JWT Decoder <ArrowUpRight className="size-3.5" />
                   </Link>
                 </article>
 
@@ -1140,6 +1153,8 @@ export function SecurityLab() {
             </div>
           </div>
         )}
+
+        {activeTab === 'jwt-decoder' && <SecurityLabJwtPanel />}
 
         {/* ════════════════════════════════════════════════════════════════════
             TAB 4: PLANNED MODULES

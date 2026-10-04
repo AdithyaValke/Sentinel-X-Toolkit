@@ -1,4 +1,4 @@
-import { PAYLOAD_GENERATOR_CATALOG_ENTRY } from './security-lab-catalog.ts'
+import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY } from './security-lab-catalog.ts'
 
 export type SearchEntry = {
   title: string
@@ -25,6 +25,13 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
       'listener template', 'relay template', 'ip and port', 'non-executable',
     ],
     icon: 'payload',
+  },
+  {
+    title: JWT_DECODER_CATALOG_ENTRY.title,
+    description: JWT_DECODER_CATALOG_ENTRY.description,
+    href: JWT_DECODER_CATALOG_ENTRY.href,
+    keywords: ['jwt', 'json web token', 'token decoder', 'token analyzer', 'claims', 'bearer token', 'signature verification', 'hs256', 'hs384', 'hs512'],
+    icon: 'security',
   },
   {
     title: 'Payload Tools',
