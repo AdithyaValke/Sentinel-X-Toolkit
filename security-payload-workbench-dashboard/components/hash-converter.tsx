@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import { Check, Clipboard, Eraser, Hash, Loader2, ShieldCheck } from 'lucide-react'
+import { Check, Clipboard, Eraser, Hash, ShieldCheck } from 'lucide-react'
 import { callBackend, type HashAlgorithm } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
+
+const HASH_OPTIONS: Array<{ value: HashAlgorithm; label: string; detail: string }> = [
+  { value: 'MD5', label: 'MD5', detail: 'Legacy compatibility' },
+  { value: 'SHA-256', label: 'SHA-256', detail: 'Recommended default' },
+  { value: 'SHA-512', label: 'SHA-512', detail: 'Extended integrity' },
+]
 
 export function HashConverter() {
   const [input, setInput] = useState('')
@@ -87,26 +92,40 @@ export function HashConverter() {
 
   return (
     <main className="min-h-screen bg-[#080b12] text-slate-100">
-      <div className="workbench-shell">
+      <div className="workbench-shell hash-workbench-shell">
         <header className="workbench-header">
           <div>
             <div className="eyebrow"><ShieldCheck /> Security tooling</div>
             <h1>Hash <span>Converter</span></h1>
-            <p>Generate secure hashes from raw text with the algorithm of your choice through the existing Flask API.</p>
+            <p>Generate hashes from text using the algorithm of your choice.</p>
           </div>
-          <Link href="/dashboard" className="theme-toggle">Back to dashboard</Link>
+          <div className="header-tools"><div className="processing-pill"><span /> Flask API operations</div></div>
         </header>
 
-        <section className="workspace" aria-label="Hash converter workspace">
+        <section className="workspace hash-workspace" aria-label="Hash converter workspace">
           <article className="buffer-card">
             <div className="buffer-heading"><h2><span>01</span>Input Buffer</h2><small>Live</small></div>
             <textarea id="hash-input" value={input} onChange={(event) => updateInput(event.target.value)} placeholder="Paste text to hash here..." className="buffer-textarea" spellCheck={false} aria-label="Hash input buffer" />
             <div className="buffer-meta"><span>{input.length} characters</span><span>UTF-8</span></div>
           </article>
 
-          <div className="operations" aria-label="Hash converter controls">
+          <div className="operations hash-operations" aria-label="Hash algorithm controls">
             <div className="section-label">Hash algorithm</div>
-            <label className="hash-tile operation-button-active" htmlFor="hash-algorithm"><Hash /><select id="hash-algorithm" value={selectedHash} onChange={(event) => updateAlgorithm(event.target.value as HashAlgorithm)} className="hash-select" aria-label="Hash algorithm selection"><option value="MD5">MD5</option><option value="SHA-256">SHA-256</option><option value="SHA-512">SHA-512</option></select></label>
+            <div className="hash-option-list">
+              {HASH_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`hash-option ${selectedHash === option.value ? 'operation-button-active' : ''}`}
+                  onClick={() => updateAlgorithm(option.value)}
+                  aria-pressed={selectedHash === option.value}
+                >
+                  <span className="hash-option-icon"><Hash /></span>
+                  <span className="hash-option-copy"><strong>{option.label}</strong><small>{option.detail}</small></span>
+                </button>
+              ))}
+            </div>
+            <p className="hash-note">MD5 is retained for legacy compatibility and is not recommended for security-sensitive storage.</p>
           </div>
 
           <article className="buffer-card">
