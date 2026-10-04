@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -14,9 +15,7 @@ import {
   Cpu,
   Eraser,
   FileCode,
-  Fingerprint,
   FlaskConical,
-  Hash,
   Info,
   Layers,
   Lock,
@@ -26,11 +25,11 @@ import {
   Shield,
   ShieldCheck,
   Terminal,
-  TerminalSquare,
   Wifi,
   Zap,
 } from 'lucide-react'
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
+import { PAYLOAD_GENERATOR_CATALOG_ENTRY } from '@/lib/security-lab-catalog'
 
 // ─── Payload Generator ───────────────────────────────────────────────────────
 
@@ -298,10 +297,30 @@ const SAMPLE_IOCS = [
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+type SecurityLabTab = 'overview' | 'defanger' | 'payload-generator' | 'planned'
+
+function SecurityLabSearchTabSync({ onTabChange }: { onTabChange: (tab: SecurityLabTab) => void }) {
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const tab: SecurityLabTab = requestedTab === 'defanger' || requestedTab === 'payload-generator' || requestedTab === 'planned'
+    ? requestedTab
+    : 'overview'
+
+  useEffect(() => {
+    onTabChange(tab)
+  }, [onTabChange, tab])
+
+  return null
+}
+
 export function SecurityLab() {
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'defanger' | 'payload-generator' | 'planned'
-  >('overview')
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState<SecurityLabTab>('overview')
+
+  function selectTab(tab: SecurityLabTab) {
+    setActiveTab(tab)
+    router.replace(`/security-lab?tab=${tab}`, { scroll: false })
+  }
 
   // ── IoC Defanger state ──────────────────────────────────────────────────
   const [iocInput, setIocInput] = useState('')
@@ -458,6 +477,9 @@ export function SecurityLab() {
 
   return (
     <main className="min-h-screen bg-[#080b12] text-slate-100 selection:bg-cyan-400/30">
+      <Suspense fallback={null}>
+        <SecurityLabSearchTabSync onTabChange={setActiveTab} />
+      </Suspense>
       {/* ── Sticky header ─────────────────────────────────────────────────── */}
       <header className="sticky top-28 z-30 border-b border-white/[0.07] bg-[#0b0f18]/80 backdrop-blur-md lg:top-[76px]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
@@ -482,7 +504,7 @@ export function SecurityLab() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#101928] via-[#0d1422] to-[#0a0e17] p-6 sm:p-8 lg:p-10">
           <div className="pointer-events-none absolute -right-24 -top-32 size-80 rounded-full bg-emerald-400/[0.07] blur-3xl" />
@@ -517,20 +539,20 @@ export function SecurityLab() {
         {/* ── Tab Navigation ────────────────────────────────────────────────── */}
         <nav
           aria-label="Security Lab navigation tabs"
-          className="mt-8 flex flex-wrap gap-2 border-b border-white/[0.08] pb-4"
+          className="mt-6 flex flex-wrap gap-2 border-b border-white/[0.08] pb-4"
         >
           {(
             [
               { id: 'overview', label: 'Overview & Catalog' },
               { id: 'defanger', label: 'IoC Defanger & Sanitizer' },
-              { id: 'payload-generator', label: 'Payload Generator' },
+              { id: 'payload-generator', label: PAYLOAD_GENERATOR_CATALOG_ENTRY.title },
               { id: 'planned', label: 'Planned Modules' },
             ] as const
           ).map(({ id, label }) => (
             <button
               key={id}
               type="button"
-              onClick={() => setActiveTab(id)}
+              onClick={() => selectTab(id)}
               aria-current={activeTab === id ? 'page' : undefined}
               className={`min-h-11 rounded-xl px-4 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 sm:text-sm ${
                 activeTab === id
@@ -547,7 +569,7 @@ export function SecurityLab() {
             TAB 1: OVERVIEW & CATALOG
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'overview' && (
-          <div className="mt-8 space-y-10">
+          <div className="mt-6 space-y-6">
             <div>
               <div className="flex items-center justify-between">
                 <div>
@@ -560,9 +582,9 @@ export function SecurityLab() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-4 grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Card: IoC Defanger */}
-                <article className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-emerald-400/40 hover:bg-[#101724]">
+                <article className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-emerald-400/40 hover:bg-[#101724]">
                   <div className="flex items-start justify-between">
                     <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/20">
                       <Shield className="size-5" />
@@ -580,112 +602,40 @@ export function SecurityLab() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('defanger')}
-                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
+                    onClick={() => selectTab('defanger')}
+                    className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
                   >
                     Open Defanger <ArrowRight className="size-3.5" />
                   </button>
                 </article>
 
                 {/* Card: Payload Generator */}
-                <article className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-cyan-400/40 hover:bg-[#101724]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20">
+                <article className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-cyan-400/40 hover:bg-[#101724]">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20">
                       <Zap className="size-5" />
                     </span>
-                    <span className="rounded bg-cyan-400/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
+                    <span className="rounded bg-cyan-400/10 px-2 py-0.5 text-right font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
                       Reference Generator
                     </span>
                   </div>
-                  <h3 className="mt-4 text-base font-semibold text-white">Payload Generator</h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    Generate connectivity-test and reference templates for a configured IP and
-                    port. Client-side only — no network calls are made.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('payload-generator')}
-                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
-                  >
-                    Open Generator <ArrowRight className="size-3.5" />
-                  </button>
-                </article>
-
-                {/* Card: Identify Hash Function */}
-                <article className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-violet-400/40 hover:bg-[#101724]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-violet-400/10 text-violet-300 ring-1 ring-violet-400/20">
-                      <Fingerprint className="size-5" />
-                    </span>
-                    <span className="rounded bg-violet-400/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-violet-300">
-                      Analyzer
-                    </span>
-                  </div>
                   <h3 className="mt-4 text-base font-semibold text-white">
-                    Identify Hash Function
+                    {PAYLOAD_GENERATOR_CATALOG_ENTRY.title}
                   </h3>
                   <p className="mt-2 text-xs leading-5 text-slate-400">
-                    Inspect unknown cryptographic hashes, match formats (MD5, SHA-256, bcrypt),
-                    and review algorithmic confidence.
+                    {PAYLOAD_GENERATOR_CATALOG_ENTRY.description} Everything is generated locally;
+                    nothing is executed or sent over the network.
                   </p>
                   <Link
-                    href="/identify-hash"
-                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2 text-xs font-semibold text-violet-300 transition hover:bg-violet-400 hover:text-slate-950"
+                    href={PAYLOAD_GENERATOR_CATALOG_ENTRY.href}
+                    className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
                   >
-                    Launch Analyzer <ArrowUpRight className="size-3.5" />
-                  </Link>
-                </article>
-
-                {/* Card: Hash Converter */}
-                <article className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-cyan-400/40 hover:bg-[#101724]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20">
-                      <Hash className="size-5" />
-                    </span>
-                    <span className="rounded bg-cyan-400/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
-                      Converter
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-white">Hash Converter</h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    Generate MD5, SHA-256, and SHA-512 cryptographic digests from raw input
-                    through the backend service.
-                  </p>
-                  <Link
-                    href="/hash-tools"
-                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
-                  >
-                    Open Converter <ArrowUpRight className="size-3.5" />
-                  </Link>
-                </article>
-
-                {/* Card: Payload Encoding Workbench */}
-                <article className="rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-amber-400/40 hover:bg-[#101724]">
-                  <div className="flex items-start justify-between">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/20">
-                      <TerminalSquare className="size-5" />
-                    </span>
-                    <span className="rounded bg-amber-400/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                      Workbench
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-white">
-                    Payload Encoding Workbench
-                  </h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    Encode and decode Base64, URL percent-encoding, and Hexadecimal representations
-                    with live validation.
-                  </p>
-                  <Link
-                    href="/payload-tools"
-                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-400 hover:text-slate-950"
-                  >
-                    Open Workbench <ArrowUpRight className="size-3.5" />
+                    Open Payload Generator <ArrowUpRight className="size-3.5" />
                   </Link>
                 </article>
 
                 {/* Card: Planned Modules */}
-                <article className="rounded-2xl border border-dashed border-white/20 bg-white/[0.015] p-6">
+                <article className="flex flex-col rounded-2xl border border-dashed border-white/20 bg-white/[0.015] p-6">
                   <div className="flex items-start justify-between">
                     <span className="flex size-10 items-center justify-center rounded-xl bg-slate-800 text-slate-400">
                       <Layers className="size-5" />
@@ -703,8 +653,8 @@ export function SecurityLab() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('planned')}
-                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-medium text-slate-400 transition hover:border-white/20 hover:text-slate-200"
+                    onClick={() => selectTab('planned')}
+                    className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-medium text-slate-400 transition hover:border-white/20 hover:text-slate-200"
                   >
                     View Roadmap <ChevronRight className="size-3.5" />
                   </button>

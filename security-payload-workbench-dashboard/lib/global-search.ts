@@ -1,3 +1,5 @@
+import { PAYLOAD_GENERATOR_CATALOG_ENTRY } from './security-lab-catalog.ts'
+
 export type SearchEntry = {
   title: string
   description: string
@@ -15,10 +17,20 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     icon: 'dashboard',
   },
   {
+    title: PAYLOAD_GENERATOR_CATALOG_ENTRY.title,
+    description: PAYLOAD_GENERATOR_CATALOG_ENTRY.description,
+    href: PAYLOAD_GENERATOR_CATALOG_ENTRY.href,
+    keywords: [
+      'payload', 'reference generator', 'connectivity test', 'tcp check', 'http probe',
+      'listener template', 'relay template', 'ip and port', 'non-executable',
+    ],
+    icon: 'payload',
+  },
+  {
     title: 'Payload Tools',
     description: 'Encode and decode Base64, URL, and Hex data.',
     href: '/payload-tools',
-    keywords: ['payload generator', 'payload utilities', 'base64', 'url encode', 'url decode', 'hex', 'hexadecimal', 'encoding', 'decoding'],
+    keywords: ['payload utilities', 'base64', 'url encode', 'url decode', 'hex', 'hexadecimal', 'encoding', 'decoding'],
     icon: 'payload',
   },
   {
