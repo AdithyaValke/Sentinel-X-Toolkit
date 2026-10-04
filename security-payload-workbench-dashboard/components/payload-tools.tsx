@@ -13,17 +13,19 @@ import {
 import { callBackend } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
 import { PAYLOAD_OPERATION_MAP, type PayloadOperation } from '@/lib/payload-operations'
+import { useApiStatus } from '@/components/app-shell'
 
-const operations: { id: PayloadOperation; label: string; icon: typeof LockKeyhole }[] = [
-  { id: 'base64-encode', label: 'Base64 Encode', icon: LockKeyhole },
-  { id: 'base64-decode', label: 'Base64 Decode', icon: LockKeyhole },
-  { id: 'url-encode', label: 'URL Encode', icon: Link2 },
-  { id: 'url-decode', label: 'URL Decode', icon: Link2 },
-  { id: 'hex-encode', label: 'Hex Encode', icon: Hash },
-  { id: 'hex-decode', label: 'Hex Decode', icon: Hash },
+const operations: { id: PayloadOperation; label: string; description: string; icon: typeof LockKeyhole }[] = [
+  { id: 'base64-encode', label: 'Base64 Encode', description: 'Convert to Base64 format', icon: LockKeyhole },
+  { id: 'base64-decode', label: 'Base64 Decode', description: 'Decode from Base64 format', icon: LockKeyhole },
+  { id: 'url-encode', label: 'URL Encode', description: 'Encode for URL usage', icon: Link2 },
+  { id: 'url-decode', label: 'URL Decode', description: 'Decode from URL format', icon: Link2 },
+  { id: 'hex-encode', label: 'Hex Encode', description: 'Convert to Hex format', icon: Hash },
+  { id: 'hex-decode', label: 'Hex Decode', description: 'Decode from Hex format', icon: Hash },
 ]
 
 export function PayloadTools() {
+  const apiStatus = useApiStatus()
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [error, setError] = useState('')
@@ -112,7 +114,7 @@ export function PayloadTools() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="workbench-shell">
+      <div className="workbench-shell payload-tools-shell">
         <header className="workbench-header">
           <div>
             <div className="eyebrow">
@@ -126,90 +128,95 @@ export function PayloadTools() {
             </p>
           </div>
           <div className="header-tools">
-            <div className="processing-pill">
-              <span /> Flask API operations
+            <div className={`api-status-pill api-status-${apiStatus}`} role="status" aria-live="polite">
+              <span aria-hidden="true" />
+              {apiStatus === 'checking' ? 'Checking API' : apiStatus === 'online' ? 'API Online' : 'API Offline'}
             </div>
           </div>
         </header>
 
-        <section className="workspace" aria-label="Security operations workspace">
-          {/* Input Buffer */}
-          <BufferCard title="Input Buffer" icon="01">
-            <textarea
-              id="input-buffer"
-              value={input}
-              onChange={(event) => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setInput(event.target.value) }}
-              placeholder="Paste text or encoded data here..."
-              className="buffer-textarea"
-              spellCheck={false}
-              aria-label="Input buffer"
-            />
-            <BufferMeta count={input.length} />
-          </BufferCard>
+        <div className="payload-workspace-panel">
+          <section className="workspace payload-workspace" aria-label="Security operations workspace">
+            {/* Input Buffer */}
+            <BufferCard title="Input Buffer" icon="01">
+              <textarea
+                id="input-buffer"
+                value={input}
+                onChange={(event) => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setInput(event.target.value) }}
+                placeholder="Paste text or encoded data here..."
+                className="buffer-textarea"
+                spellCheck={false}
+                aria-label="Input buffer"
+              />
+              <BufferMeta count={input.length} onClear={clearAll} />
+            </BufferCard>
 
-          {/* Operations Controls */}
-          <div className="operations" aria-label="Operations">
-            <div className="section-label">Operations</div>
-            <div className="operation-grid">
-              {operations.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={operation === id}
-                  onClick={() => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setOperation(id) }}
-                  className={`operation-button ${
-                    operation === id ? 'operation-button-active' : ''
-                  }`}
-                >
-                  <Icon />
-                  <span>{label}</span>
-                </button>
-              ))}
+            {/* Operations Controls */}
+            <div className="operations" aria-label="Operations">
+              <div className="section-label">Operations</div>
+              <div className="operation-grid">
+                {operations.map(({ id, label, description, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={operation === id}
+                    aria-label={`${label}: ${description}`}
+                    onClick={() => { latestRequest.current.cancel(); setOutput(''); setError(''); setLoading(false); setOperation(id) }}
+                    className={`operation-button ${
+                      operation === id ? 'operation-button-active' : ''
+                    }`}
+                  >
+                    <span className="operation-icon"><Icon aria-hidden="true" /></span>
+                    <span className="operation-copy">
+                      <strong>{label}</strong>
+                      <small>{description}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
             </div>
 
-          </div>
+            {/* Output Buffer */}
+            <BufferCard
+              title="Output Buffer"
+              icon="02"
+              status={loading ? 'Processing' : error ? 'Error' : output ? 'Ready' : 'Waiting'}
+            >
+              <textarea
+                id="output-buffer"
+                value={output}
+                readOnly
+                placeholder="Your result will appear here..."
+                className={`buffer-textarea output-textarea ${error ? 'buffer-error' : ''}`}
+                spellCheck={false}
+                aria-label="Output buffer"
+                aria-describedby={error ? 'decode-error' : undefined}
+              />
 
-          {/* Output Buffer */}
-          <BufferCard
-            title="Output Buffer"
-            icon="02"
-            status={loading ? 'Processing' : error ? 'Error' : output ? 'Ready' : 'Waiting'}
-          >
-            <textarea
-              id="output-buffer"
-              value={output}
-              readOnly
-              placeholder="Your result will appear here..."
-              className={`buffer-textarea output-textarea ${error ? 'buffer-error' : ''}`}
-              spellCheck={false}
-              aria-label="Output buffer"
-              aria-describedby={error ? 'decode-error' : undefined}
-            />
-
-            <div className="buffer-meta">
-              <span id="decode-error" role="alert" className={error ? 'error-text' : ''}>
-                {error || `${output.length} characters`}
-              </span>
-              <span>UTF-8</span>
-            </div>
-          </BufferCard>
-        </section>
+              {error && <p id="decode-error" role="alert" className="buffer-error-message">{error}</p>}
+              <BufferMeta count={output.length} />
+            </BufferCard>
+          </section>
 
         {/* Footer */}
-        <footer className="workbench-footer">
-          <span>Developed with modern web security best practices</span>
-          <div>
-            <button type="button" onClick={clearAll} className="footer-action">
-              <Eraser /> Clear
-            </button>
-            <button type="button" onClick={copyResult} className="footer-action" disabled={!output}>
-              {copied ? <Check /> : <Clipboard />} {copied ? 'Copied' : 'Copy result'}
-            </button>
-            <a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noreferrer">
-              OWASP resources ↗
-            </a>
-          </div>
-        </footer>
+          <footer className="workbench-footer">
+            <span className="payload-security-note">
+              <ShieldCheck aria-hidden="true" /> Developed with modern web security best practices
+            </span>
+            <div>
+              <button type="button" onClick={clearAll} className="footer-action">
+                <Eraser /> Clear
+              </button>
+              <button type="button" onClick={copyResult} className="footer-action" disabled={!output}>
+                {copied ? <Check /> : <Clipboard />} {copied ? 'Copied' : 'Copy result'}
+              </button>
+              <a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noreferrer">
+                OWASP resources ↗
+              </a>
+            </div>
+          </footer>
+        </div>
       </div>
     </main>
   )
@@ -240,11 +247,14 @@ function BufferCard({
   )
 }
 
-function BufferMeta({ count }: { count: number }) {
+function BufferMeta({ count, onClear }: { count: number; onClear?: () => void }) {
   return (
     <div className="buffer-meta">
       <span>{count} characters</span>
-      <span>UTF-8</span>
+      <span className="buffer-meta-actions">
+        {onClear && <button type="button" onClick={onClear} disabled={count === 0} aria-label="Clear input buffer">Clear</button>}
+        <span>UTF-8</span>
+      </span>
     </div>
   )
 }

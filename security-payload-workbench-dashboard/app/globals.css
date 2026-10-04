@@ -247,6 +247,8 @@
   .workbench-shell { @apply relative mx-auto flex min-h-screen w-full max-w-[1480px] flex-col overflow-x-hidden px-3 py-4 sm:px-6 sm:py-5 lg:min-h-[calc(100vh-76px)] lg:px-7 lg:py-6; }
   .workbench-shell::before { content: ''; @apply pointer-events-none absolute inset-0 opacity-25; background-image: linear-gradient(to right, rgb(34 211 238 / 0.035) 1px, transparent 1px), linear-gradient(to bottom, rgb(34 211 238 / 0.035) 1px, transparent 1px); background-size: 2.5rem 2.5rem; mask-image: linear-gradient(to bottom, black, transparent 68%); }
   .workbench-header, .workspace, .workbench-footer { @apply relative; }
+  .payload-workspace-panel { @apply relative rounded-2xl border border-slate-800/80 bg-slate-950/25 p-3 sm:p-4; }
+  html.light .payload-workspace-panel { @apply border-slate-200 bg-white/70; }
   .workbench-header { @apply mb-4 flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between; }
   .workbench-header .theme-toggle { @apply min-h-11 self-start sm:self-auto; }
   .dark .workbench-header, .dark .workbench-footer { @apply border-slate-800; }
@@ -258,8 +260,14 @@
   h1 span { @apply text-cyan-600 dark:text-cyan-400; }
   .workbench-header p { @apply mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400; }
   .header-tools { @apply flex items-center gap-2 self-start sm:self-auto; }
-  .processing-pill { @apply flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300; }
-  .processing-pill span { @apply size-1.5 rounded-full bg-emerald-500; }
+  .api-status-pill { @apply inline-flex min-h-8 items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider; }
+  .api-status-pill > span { @apply size-1.5 rounded-full; }
+  .api-status-online { @apply border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300; }
+  .api-status-online > span { @apply bg-emerald-500; }
+  .api-status-offline { @apply border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300; }
+  .api-status-offline > span { @apply bg-rose-500; }
+  .api-status-checking { @apply border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300; }
+  .api-status-checking > span { @apply bg-amber-500; }
   .theme-toggle { @apply inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500; }
   .dark .theme-toggle { @apply border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-400/60 hover:text-cyan-300; }
   .light .theme-toggle { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:text-cyan-700; }
@@ -275,12 +283,39 @@
   .light .operation-button, .light .hash-tile, html.light .operation-button, html.light .hash-tile { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:bg-cyan-50 hover:text-cyan-700; }
   .operation-button svg, .hash-tile svg { @apply size-4; }
   .operation-button-active { @apply border-cyan-500/70 shadow-[0_0_24px_rgba(34,211,238,0.12)]; }
-  .dark .operation-button-active { @apply bg-cyan-400/10 text-cyan-300; }
-  .light .operation-button-active { @apply bg-cyan-50 text-cyan-700; }
+  .dark .operation-button-active { @apply border-cyan-400/80 bg-cyan-400/10 text-cyan-200; }
+  .light .operation-button-active, html.light .operation-button-active { @apply border-cyan-600/70 bg-cyan-50 text-cyan-800; }
+  .payload-workspace { @apply flex flex-col; }
+  .payload-workspace .operation-grid { @apply grid-cols-1; }
+  .payload-workspace .operation-button { @apply min-h-[58px] flex-row items-center gap-3 px-3; }
+  .operation-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-900/80 text-slate-300; }
+  .operation-icon svg { @apply size-4; }
+  .operation-button-active .operation-icon { @apply border-cyan-400/30 bg-cyan-400/10 text-cyan-500 dark:text-cyan-300; }
+  .operation-copy { @apply flex min-w-0 flex-col gap-1; }
+  .operation-copy strong { @apply text-[11px] font-semibold leading-4; }
+  .operation-copy small { @apply text-[9px] leading-3 text-slate-500; }
+  .payload-security-note { @apply inline-flex items-center gap-2; }
+  .payload-security-note svg { @apply size-4 shrink-0 text-cyan-500; }
+  .buffer-meta-actions { @apply flex items-center gap-3; }
+  .buffer-meta-actions button { @apply min-h-10 rounded-md px-2 text-[10px] text-slate-500 transition hover:bg-cyan-500/10 hover:text-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-cyan-300; }
+  .payload-tools-shell .buffer-meta-actions button { @apply border border-slate-700 bg-slate-900/60 text-slate-300; }
+  .payload-tools-shell .buffer-meta-actions button:hover:not(:disabled) { @apply border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300; }
+  .payload-tools-shell .buffer-meta-actions button:focus-visible { @apply outline-none ring-2 ring-cyan-500 ring-offset-2 ring-offset-background; }
+  .payload-tools-shell .buffer-meta-actions button:disabled { @apply cursor-not-allowed border-transparent bg-transparent text-slate-500 opacity-60; }
+  .light .payload-tools-shell .buffer-meta-actions button, html.light .payload-tools-shell .buffer-meta-actions button { @apply border-slate-300 bg-white text-slate-600; }
+  .light .payload-tools-shell .buffer-meta-actions button:disabled, html.light .payload-tools-shell .buffer-meta-actions button:disabled { @apply border-transparent bg-transparent text-slate-400; }
+  .buffer-error-message { @apply mt-2 break-words text-xs text-red-600 dark:text-red-400; }
   .hash-label { @apply mt-4; }
   .hash-tile { @apply flex items-center gap-2 rounded-xl border px-3; }
   .hash-select { @apply min-h-11 w-full bg-transparent font-mono text-[11px] outline-none; }
   .buffer-card { @apply flex min-h-[320px] flex-col rounded-xl border p-3.5 shadow-xl sm:min-h-[360px] sm:p-4 lg:min-h-0 lg:h-full; }
+  .payload-workspace .buffer-card { @apply min-h-[300px] sm:min-h-[340px] xl:min-h-0; }
+  .payload-workspace-panel .workbench-footer { @apply mt-4; }
+  .payload-tools-shell .payload-workspace-panel { @apply p-2.5 sm:p-3; }
+  .payload-tools-shell .payload-workspace .operations { @apply justify-start py-3; }
+  .payload-tools-shell .payload-workspace .section-label { @apply mb-2; }
+  .payload-tools-shell .payload-workspace .operation-grid { @apply gap-1.5; }
+  .payload-tools-shell .payload-workspace-panel .workbench-footer { @apply mt-3 pt-2; }
   @media (max-width: 1023px) {
     .workspace { @apply flex flex-col; }
     .operations { @apply order-2; }
@@ -292,6 +327,31 @@
     .workspace { @apply rounded-lg p-2.5; }
     .operation-button { @apply min-h-14 px-2.5; }
     .buffer-card { @apply min-h-[250px] p-3; }
+  }
+  @media (min-width: 1280px) {
+    .payload-workspace { @apply grid grid-cols-[minmax(0,1fr)_232px_minmax(0,1fr)] gap-5 xl:gap-6; }
+  }
+  @media (min-width: 1280px) {
+    .payload-tools-shell .payload-workspace .buffer-card { min-height: clamp(360px, calc(100svh - 500px), 460px); }
+    .payload-tools-shell .payload-workspace .buffer-textarea { min-height: clamp(180px, calc(100svh - 620px), 340px); }
+    .payload-tools-shell .payload-workspace .operation-button { @apply min-h-[50px] gap-2.5 px-2.5; }
+  }
+  @media (min-width: 1024px) {
+    .payload-tools-shell { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+    .payload-tools-shell .workbench-header { margin-bottom: 0.75rem; padding-bottom: 0.75rem; }
+  }
+  @media (max-width: 1279px) {
+    .payload-workspace { @apply flex flex-col; }
+    .payload-workspace .operation-grid { @apply grid-cols-2; }
+    .payload-workspace .operation-button { @apply min-h-[68px] flex-col items-start gap-1.5 px-2.5; }
+    .payload-workspace .buffer-card { @apply min-h-[300px]; }
+  }
+  @media (max-width: 480px) {
+    .payload-workspace .buffer-card { @apply min-h-[250px]; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .payload-workspace .operation-button, .buffer-meta-actions button { transition: none; }
+    .payload-workspace .operation-button:hover { transform: none; }
   }
   .dark .buffer-card { @apply border-slate-800 bg-slate-900/65 shadow-black/25; }
   .light .buffer-card, html.light .buffer-card { @apply border-slate-200 bg-white shadow-slate-200/70; }
