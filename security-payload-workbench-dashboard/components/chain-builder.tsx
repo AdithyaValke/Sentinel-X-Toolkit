@@ -188,13 +188,10 @@ export function ChainBuilder() {
 
   return (
     <main className="chain-page min-h-[calc(100vh-76px)] bg-background text-foreground xl:h-[calc(100dvh-76px)] xl:min-h-0" onKeyDown={handleKeyboard}>
-      <div className="chain-container mx-auto flex w-full max-w-[1760px] flex-col gap-3 px-4 pb-28 pt-4 sm:px-6 lg:px-8 xl:h-full xl:min-h-[680px] xl:gap-0 xl:px-6 xl:pb-0 xl:pt-0">
-        <header className="flex shrink-0 items-center justify-between gap-5 border-b border-border/70 pb-3 xl:pb-0">
+      <div className="chain-container mx-auto flex w-full max-w-[1760px] flex-col gap-3 px-4 pb-28 pt-4 sm:px-6 lg:px-8 xl:h-full xl:gap-0 xl:px-6 xl:pb-0 xl:pt-0">
+        <header className="flex shrink-0 items-center justify-between gap-5 border-b border-border/70 pb-3 pt-2 xl:pb-2">
           <div className="min-w-0">
-            <p className="mb-1 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-300"><Link2 className="size-3.5" /> Chain Builder</p>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl xl:text-xl">Chain <span className="text-cyan-600 dark:text-cyan-300">Builder</span></h1>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground sm:text-sm xl:text-xs xl:leading-4">Chain multiple transformations in sequence. Each step receives the previous step&apos;s output.</p>
-            <p className="text-xs leading-5 text-muted-foreground sm:text-sm xl:text-xs xl:leading-4">Build, reorder, and run transformation chains for your payloads.</p>
+            <p className="text-xs leading-5 text-muted-foreground sm:text-sm xl:text-xs xl:leading-4">Chain multiple transformations in sequence. Each step receives the previous step&apos;s output. Build, reorder, and run transformation chains for your payloads.</p>
           </div>
           <div className="hidden shrink-0 items-center gap-2.5 lg:flex" aria-hidden="true">
             {[FileText, Filter, Code2, ShieldCheck].map((Icon, index) => <div key={index} className="flex items-center gap-2.5">
@@ -204,7 +201,7 @@ export function ChainBuilder() {
           </div>
         </header>
 
-        <div className="grid gap-4 lg:grid-cols-2 xl:min-h-[560px] xl:flex-1 xl:grid-cols-3 xl:gap-3">
+        <div className="grid min-h-0 gap-4 lg:grid-cols-2 xl:flex-1 xl:grid-cols-3 xl:gap-3">
           <section className="chain-card flex min-h-[610px] flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5 xl:min-h-0" aria-labelledby="input-heading">
             <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
               <div><h2 id="input-heading" className="text-base font-semibold">Input</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Add your text or encoded data to start the chain.</p></div>
