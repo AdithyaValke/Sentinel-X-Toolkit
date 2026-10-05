@@ -7,8 +7,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Payload Workbench',
-  description: 'A focused security workspace for payload and hash analysis tools.',
+  title: 'SentinelX',
+  description: 'A general-purpose cybersecurity toolkit for encoding, hashing, token analysis, and security utilities.',
   generator: 'v0.app',
   icons: { apple: '/apple-icon.png' },
 }
@@ -40,9 +40,9 @@ export default function RootLayout({
                 <div className="mb-7 flex size-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-300">
                   <Monitor aria-hidden="true" className="size-7" />
                 </div>
-                <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-300">Payload Workbench</p>
+                <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-300">SentinelX</p>
                 <h1 id="desktop-required-heading" className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Desktop Experience Required</h1>
-                <p id="desktop-required-message" className="mt-4 text-sm leading-6 text-slate-300">Open Payload Workbench on a laptop or desktop for the full security workspace.</p>
+                <p id="desktop-required-message" className="mt-4 text-sm leading-6 text-slate-300">Open SentinelX on a laptop or desktop for the full security workspace.</p>
                 <div aria-hidden="true" className="mt-8 h-px w-full bg-gradient-to-r from-cyan-400/40 via-white/10 to-transparent" />
                 <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-slate-500">A wider screen is needed to use these tools comfortably.</p>
               </section>

@@ -9,7 +9,7 @@ import { getActivityServerSnapshot, getActivitySnapshot, localActivityStore } fr
 const tools = [
   { title: 'Hash Converter', description: 'Generate secure hashes from raw text with the algorithm of your choice.', icon: Hash, accent: 'dashboard-icon-cyan', href: '/hash-tools', tag: 'Converter' },
   { title: 'Identify Hash Function', description: 'Inspect a hash string and review likely algorithms with supporting evidence.', icon: Fingerprint, accent: 'dashboard-icon-violet', href: '/identify-hash', tag: 'Analyzer' },
-  { title: 'Payload Tools', description: 'Encode and decode Base64, URL, and Hex data in one focused workspace.', icon: TerminalSquare, accent: 'dashboard-icon-amber', href: '/payload-tools', tag: 'Workbench' },
+  { title: 'Payload Tools', description: 'Encode and decode Base64, URL, and Hex data in one focused workspace.', icon: TerminalSquare, accent: 'dashboard-icon-amber', href: '/payload-tools', tag: 'Utilities' },
   { title: 'Security Lab', description: 'Explore practical security utilities and validate suspicious input safely.', icon: FlaskConical, accent: 'dashboard-icon-emerald', href: '/security-lab', tag: 'Explore' },
 ]
 

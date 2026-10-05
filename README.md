@@ -1,6 +1,6 @@
-﻿# Payload Workbench
+﻿# SentinelX
 
-Payload Workbench is a security-focused utility workspace for encoding and decoding text, generating common hashes, reviewing likely hash formats, and working with indicators and network-security references. The web interface is built with Next.js and TypeScript; API-backed operations use a separate Flask service.
+SentinelX (formerly Payload Workbench) is a general-purpose cybersecurity toolkit for students, professionals, developers, and researchers, providing encoding and decoding, hashing, token analysis, and security utilities. The web interface is built with Next.js and TypeScript; API-backed operations use a separate Flask service.
 
 **Live application:** [payload-workbench.vercel.app](https://payload-workbench.vercel.app)
 

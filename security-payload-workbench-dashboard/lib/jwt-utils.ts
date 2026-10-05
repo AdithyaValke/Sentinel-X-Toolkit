@@ -211,7 +211,7 @@ export async function createSampleJwt(nowMs = Date.now()): Promise<string> {
   const secret = 'demo-secret'
   const now = Math.floor(nowMs / 1000)
   const header = { alg: 'HS256', typ: 'JWT' }
-  const payload = { iss: 'payload-workbench-demo', aud: 'local-learning', sub: 'sample-user', iat: now, exp: now + 3600 }
+  const payload = { iss: 'sentinelx-demo', aud: 'local-learning', sub: 'sample-user', iat: now, exp: now + 3600 }
   const encode = (value: unknown) => {
     const bytes = new TextEncoder().encode(JSON.stringify(value))
     let binary = ''

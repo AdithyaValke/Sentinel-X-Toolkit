@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { IdentifyHash } from '@/components/identify-hash'
 
 export const metadata: Metadata = {
-  title: 'Identify Hash Function | Payload Workbench',
-  description: 'Identify likely hash algorithms using the Payload Workbench Flask API.',
+  title: 'Identify Hash Function | SentinelX',
+  description: 'Identify likely hash algorithms using the SentinelX API.',
 }
 
 export default function IdentifyHashPage() {

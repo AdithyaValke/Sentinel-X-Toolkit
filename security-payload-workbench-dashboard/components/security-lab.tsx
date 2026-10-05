@@ -641,10 +641,10 @@ export function SecurityLab() {
                 <ShieldCheck className="mt-1 size-5 shrink-0 text-emerald-400" />
                 <div className="text-xs leading-6 text-slate-300 sm:text-sm">
                   <strong className="block text-emerald-200">
-                    Defensive Architecture &amp; Safety Protocol
+                    Security Architecture &amp; Safety Protocol
                   </strong>
-                  Payload Workbench Security Lab is built strictly for defensive cybersecurity
-                  education and data sanitization. It does not initiate external network requests,
+                  SentinelX Security Lab provides security utilities for analysis, learning,
+                  and data sanitization. It does not initiate external network requests,
                   execute code on remote endpoints, scan IP ranges, or provide functional exploit
                   payloads. All operations run locally in your browser.
                 </div>
@@ -655,13 +655,13 @@ export function SecurityLab() {
 
         {/* ════════════════════════════════════════════════════════════════════
             TAB 2: IOC DEFANGER & SANITIZER
-        ════════════════════════════════════════════════════════════════════ */}
+        ════════════════��═══════════════════════════════════════════════════ */}
         {activeTab === 'defanger' && (
           <div className="mt-4 space-y-6">
             <header>
               <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400">
                 <Shield className="size-3.5" />
-                Defensive Utility
+                Security Utility
               </div>
               <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
                 IoC Defanger &amp; Sanitizer
@@ -1119,7 +1119,7 @@ export function SecurityLab() {
         {/* ── Page footer ───────────────────────────────────────────────────── */}
         <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.08] pt-6 text-xs text-slate-500 sm:flex-row">
           <span>
-            Payload Workbench Security Lab &bull; Defensive Analysis &bull; MIT License
+            SentinelX Security Lab - MIT License
           </span>
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="transition hover:text-cyan-300">
