@@ -10,6 +10,7 @@ import ipaddress
 from flask_limiter import Limiter
 from flask_limiter.errors import RateLimitExceeded
 
+from database import create_database, database_url_from_environment
 from hash_identifier import analyze_hashes
 
 CHAIN_MAX_STEPS = 10
@@ -118,6 +119,8 @@ def _positive_int_setting_from(environment, name: str, default: str) -> int:
 _is_render, _rate_limit_storage, _rate_limit = _rate_limit_configuration(os.environ)
 app.config["API_RATE_LIMIT_PER_MINUTE"] = _rate_limit
 app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = os.environ.get("TRUST_CLOUDFLARE_CLIENT_IP", "").lower() == "true"
+_database_url = database_url_from_environment(required=_is_render)
+app.extensions["database"] = create_database(_database_url) if _database_url else None
 
 
 class ClientIpUnavailable(Exception):
