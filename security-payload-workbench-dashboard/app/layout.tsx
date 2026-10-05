@@ -10,7 +10,6 @@ export const metadata: Metadata = {
   title: 'SentinelX',
   description: 'A general-purpose cybersecurity toolkit for encoding, hashing, token analysis, and security utilities.',
   generator: 'v0.app',
-  icons: { apple: '/apple-icon.png' },
 }
 
 export const viewport: Viewport = {

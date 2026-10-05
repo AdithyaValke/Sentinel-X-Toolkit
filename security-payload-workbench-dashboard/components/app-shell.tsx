@@ -40,7 +40,7 @@ export function useApiStatus() {
 function Brand({ compact }: { compact: boolean }) {
   return (
     <Link href="/dashboard" className="flex min-h-11 min-w-0 items-center gap-3" aria-label="SentinelX">
-      <Image src="/icon.svg" alt="" width={36} height={36} className="size-9 shrink-0 rounded-xl" priority />
+      <Image src="/sentinelx-logo.png" alt="" width={36} height={36} className="size-9 shrink-0 rounded-xl bg-white p-1.5 object-contain" priority />
       {!compact && <span className="leading-none"><span className="block whitespace-nowrap font-mono text-sm font-bold tracking-tight text-slate-100">Sentinel<span className="text-cyan-300">X</span></span><span className="block whitespace-nowrap font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-cyan-300">Security Toolkit</span></span>}
     </Link>
   )
