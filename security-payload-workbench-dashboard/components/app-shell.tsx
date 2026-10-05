@@ -27,7 +27,7 @@ const navigation = [
   { label: 'Chain Builder', icon: GitBranch, href: '/chain-builder' },
   { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
   { label: 'Identify Hash', icon: Fingerprint, href: '/identify-hash' },
-  { label: 'Security Lab', icon: FlaskConical, href: '/security-lab' },
+  { label: 'Analysis Lab', icon: FlaskConical, href: '/security-lab' },
 ]
 
 type ApiStatus = 'checking' | 'online' | 'offline'

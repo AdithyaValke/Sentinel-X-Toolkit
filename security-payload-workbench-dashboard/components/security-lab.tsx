@@ -493,7 +493,7 @@ export function SecurityLab() {
               Educational &amp; Security Analysis
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
-              Security <span className="text-emerald-400">Lab</span>
+              Analysis <span className="text-emerald-400">Lab</span>
             </h1>
             <p className="mt-4 text-sm leading-6 text-slate-300 sm:text-base sm:leading-7">
               An interactive defensive analysis environment for indicator sanitization (IoC
@@ -513,11 +513,11 @@ export function SecurityLab() {
               </span>
             </div>
           </div>
-        </section> : <h1 className="sr-only">Security Lab</h1>}
+        </section> : <h1 className="sr-only">Analysis Lab</h1>}
 
         {/* ── Tab Navigation ────────────────────────────────────────────────── */}
         <nav
-          aria-label="Security Lab navigation tabs"
+          aria-label="Analysis Lab navigation tabs"
           className={`${activeTab === 'overview' ? 'mt-4' : 'mt-0'} flex flex-wrap gap-2 border-b border-white/[0.08] pb-3`}
         >
           {(
@@ -643,7 +643,7 @@ export function SecurityLab() {
                   <strong className="block text-emerald-200">
                     Security Architecture &amp; Safety Protocol
                   </strong>
-                  SentinelX Security Lab provides security utilities for analysis, learning,
+                  SentinelX Analysis Lab provides security utilities for analysis, learning,
                   and data sanitization. It does not initiate external network requests,
                   execute code on remote endpoints, scan IP ranges, or provide functional exploit
                   payloads. All operations run locally in your browser.
@@ -1119,7 +1119,7 @@ export function SecurityLab() {
         {/* ── Page footer ───────────────────────────────────────────────────── */}
         <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.08] pt-6 text-xs text-slate-500 sm:flex-row">
           <span>
-            SentinelX Security Lab - MIT License
+            SentinelX Analysis Lab
           </span>
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="transition hover:text-cyan-300">

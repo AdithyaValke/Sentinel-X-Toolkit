@@ -30,7 +30,7 @@ The shared application shell provides navigation to the workspace tools, a globa
 
 ### Dashboard
 
-The dashboard links to Payload Tools, Hash Tools, Identify Hash, and Security Lab. It displays the current API health status and a recent-activity panel populated with **sample, non-persistent data**; it is not a stored activity log.
+The dashboard links to Payload Tools, Hash Tools, Identify Hash, and Analysis Lab. It displays the current API health status and a recent-activity panel populated with **sample, non-persistent data**; it is not a stored activity log.
 
 ### Payload Tools
 
@@ -51,9 +51,9 @@ Submit one or more candidate strings for format-based analysis. The backend chec
 This is a heuristic, not cryptographic verification: different algorithms can produce the same length and character format. Results can be ambiguous, and should be checked against the system or data format that produced the value. The feature does not crack hashes or recover their original input.
 Identify Hash accepts up to 50 non-empty lines per request.
 
-### Security Lab
+### Analysis Lab
 
-The Security Lab has an overview/catalog, an **IoC Defanger & Sanitizer** tool, a **Payload Generator**, a **JWT Decoder** tab, and a **Planned Modules** tab.
+The Analysis Lab has an overview/catalog, an **IoC Defanger & Sanitizer** tool, a **Payload Generator**, a **JWT Decoder** tab, and a **Planned Modules** tab.
 
 - **IoC Defanger & Sanitizer** detects simple indicator patterns (such as IP addresses, email addresses, and domains) and locally defangs or refangs text. It replaces URL schemes and separators such as dots and @; it does not call the Flask API.
 - **Payload Generator (reference generator)** validates an IP address and port, then renders platform-specific TCP connectivity, port-open, or HTTP reachability examples. Listener setup and socat relay outputs are static, commented reference templates. Generation is local in the browser: the application does not execute the displayed commands or make network connections. If a user copies and runs a connectivity example, that example can contact its configured target; use only authorized lab systems.
@@ -82,7 +82,7 @@ Dependency versions are declared in the dashboard package.json, pnpm-lock.yaml, 
 
 ## Architecture and API
 
-The browser calls the Flask service using the base URL in NEXT_PUBLIC_API_URL. Payload/hash processing uses POST /api/process; operation pipelines use POST /api/chain; hash-format analysis also has a dedicated POST /api/identify-hash endpoint. The frontend health indicator calls GET /health. Security Lab indicator sanitization and reference generation are client-side.
+The browser calls the Flask service using the base URL in NEXT_PUBLIC_API_URL. Payload/hash processing uses POST /api/process; operation pipelines use POST /api/chain; hash-format analysis also has a dedicated POST /api/identify-hash endpoint. The frontend health indicator calls GET /health. Analysis Lab indicator sanitization and reference generation are client-side.
 
 ~~~mermaid
 flowchart LR
@@ -258,7 +258,7 @@ Error responses use the JSON shape { "success": false, "result": "", "error": "<
 - /api/process, /api/chain, and /api/identify-hash share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. One chain call counts as one request. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
 - In Render mode, the limiter validates the single CF-Connecting-IP address as the client IP and does not trust X-Forwarded-For. If that trusted header is missing or invalid, the request fails with HTTP 503. Outside Render, local/test use the socket peer address and do not trust forwarded headers.
 - The request body is capped at 10 KiB; API inputs and required fields are validated, and unexpected server errors return a generic response.
-- The app does not execute Security Lab output or initiate network connections for generated references. Manually running a generated reachability check is a separate action and can contact the entered host.
+- The app does not execute Analysis Lab output or initiate network connections for generated references. Manually running a generated reachability check is a separate action and can contact the entered host.
 - Hash identification is heuristic and may return ambiguous candidates. MD5 is not appropriate for modern password storage; use a purpose-built password hashing scheme such as Argon2id or bcrypt for password storage.
 - These controls describe the current implementation and do not guarantee that a deployment is secure against every threat.
 
@@ -281,7 +281,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ~~~
 
-The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, JWT parsing/findings/timestamps/HMAC verification, Security Lab tab parsing, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
+The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, JWT parsing/findings/timestamps/HMAC verification, Analysis Lab tab parsing, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
 
 ## Deployment
 

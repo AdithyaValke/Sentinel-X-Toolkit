@@ -55,10 +55,10 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     icon: 'identify',
   },
   {
-    title: 'Security Lab',
+    title: 'Analysis Lab',
     description: 'Explore defensive security references and utilities.',
     href: '/security-lab',
-    keywords: ['security tools', 'ioc sanitization', 'defang', 'refang', 'connectivity', 'tcp', 'http', 'listener', 'relay', 'reference', 'learning'],
+    keywords: ['security tools', 'security lab', 'ioc sanitization', 'defang', 'refang', 'connectivity', 'tcp', 'http', 'listener', 'relay', 'reference', 'learning'],
     icon: 'security',
   },
 ]

@@ -12,7 +12,7 @@ const pages: Record<string, { breadcrumb: string; title: string }> = {
   '/chain-builder': { breadcrumb: 'Workspace / Tools', title: 'Chain Builder' },
   '/hash-tools': { breadcrumb: 'Workspace / Hash Tools', title: 'Hash Converter' },
   '/identify-hash': { breadcrumb: 'Workspace / Hash Tools', title: 'Identify Hash' },
-  '/security-lab': { breadcrumb: 'Workspace / Security', title: 'Security Lab' },
+  '/security-lab': { breadcrumb: 'Workspace / Analysis', title: 'Analysis Lab' },
 }
 
 const resultIcons = {
