@@ -1,10 +1,10 @@
 ﻿# SentinelX
 
-SentinelX (formerly Payload Workbench) is a general-purpose cybersecurity toolkit for students, professionals, developers, and researchers, providing encoding and decoding, hashing, token analysis, and security utilities. The web interface is built with Next.js and TypeScript; API-backed operations use a separate Flask service.
+SentinelX is a general-purpose cybersecurity toolkit for students, professionals, developers, and researchers, providing encoding and decoding, hashing, token analysis, and security utilities. The web interface is built with Next.js and TypeScript; API-backed operations use a separate Flask service.
 
-**Live application:** [payload-workbench.vercel.app](https://payload-workbench.vercel.app)
+**Live Demo / Website:** [https://sentinel-x-toolkit.vercel.app](https://sentinel-x-toolkit.vercel.app)
 
-**Source repository:** [ShadowM300/Payload-Workbench](https://github.com/ShadowM300/Payload-Workbench) (the repository's configured Git remote)
+**Official GitHub repository:** [https://github.com/ShadowM300/Sentinel-X-Toolkit.git](https://github.com/ShadowM300/Sentinel-X-Toolkit.git)
 
 ## Contents
 
@@ -30,7 +30,7 @@ The shared application shell provides navigation to the workspace tools, a globa
 
 ### Dashboard
 
-The dashboard links to Payload Tools, Hash Tools, Identify Hash, and Analysis Lab. It displays the current API health status and a recent-activity panel populated with **sample, non-persistent data**; it is not a stored activity log.
+The dashboard links to Payload Tools, Hash Tools, Identify Hash, and Analysis Lab. It displays the current API health status and a recent-activity panel. Recent Activity stores only tool/operation labels, outcome, timestamp, and a fixed summary locally in browser storage (up to 50 events); it does not store submitted inputs, generated outputs, JWTs, or secrets. Users can clear it from the dashboard.
 
 ### Payload Tools
 
@@ -53,19 +53,21 @@ Identify Hash accepts up to 50 non-empty lines per request.
 
 ### Analysis Lab
 
-The Analysis Lab has an overview/catalog, an **IoC Defanger & Sanitizer** tool, a **Payload Generator**, a **JWT Decoder** tab, and a **Planned Modules** tab.
+The Analysis Lab has an overview/catalog and tabs for **IoC Defanger & Sanitizer**, **Payload Generator**, **JWT Decoder**, **IoC Extractor**, and **Security Headers Analyzer**. The overview also lists PCAP Inspector and YARA Validator as planned modules.
 
 - **IoC Defanger & Sanitizer** detects simple indicator patterns (such as IP addresses, email addresses, and domains) and locally defangs or refangs text. It replaces URL schemes and separators such as dots and @; it does not call the Flask API.
 - **Payload Generator (reference generator)** validates an IP address and port, then renders platform-specific TCP connectivity, port-open, or HTTP reachability examples. Listener setup and socat relay outputs are static, commented reference templates. Generation is local in the browser: the application does not execute the displayed commands or make network connections. If a user copies and runs a connectivity example, that example can contact its configured target; use only authorized lab systems.
 - **JWT Decoder and Analyzer** decodes a pasted JWT in the browser and reviews the header, claims, timestamps, signature algorithm, key-source headers, key ID, and sensitive-looking payload keys. It flags unsigned/empty signatures, expired tokens, future nbf/iat values, non-numeric timestamps, missing exp/iss/aud/sub claims, lifetimes longer than one year, unexpected token type, HMAC shared-secret algorithms, and asymmetric algorithm policy. It also warns about jku, x5u, jwk, x5c, kid, and payload keys that look like passwords, secrets, SSNs, or card data. It is a defensive aid, not a token validator or a security guarantee.
 - JWT contents are Base64URL encoded, not encrypted. Decoding and optional HMAC verification use browser-side code and Web Crypto only. The pasted token and verification secret remain in the mounted panel's React state; they are not sent to a server or stored in browser persistence. HMAC verification supports HS256, HS384, and HS512 only; asymmetric algorithms require a public key and are not verified by this panel. A matching HMAC signature does not establish that the issuer, audience, claims, or authorization policy are trustworthy.
+- **IoC Extractor** sends submitted text to the Flask API for potential IP, domain/URL, hash, and email extraction. Results include context and counts; the tool does not query reputation services or contact extracted indicators.
+- **Security Headers Analyzer** reviews pasted HTTP response headers locally, reports value-aware observations and remediation, and does not fetch the supplied host or URL.
 - **Planned Modules** currently shows PCAP Inspector and YARA Validator as unreleased roadmap items. They are informational cards, not working tools.
 
 The global search supports title/description/keyword matching and keyboard navigation. Ctrl+K or ⌘K focuses search; arrow keys move through results, Enter opens the selected result, and Escape closes the result list. Theme selection is saved in browser storage and follows the operating-system preference when set to System.
 
 ## Live demo and services
 
-- Frontend: [https://payload-workbench.vercel.app](https://payload-workbench.vercel.app)
+- Frontend: [https://sentinel-x-toolkit.vercel.app](https://sentinel-x-toolkit.vercel.app)
 - Flask health endpoint: [https://payload-workbench.onrender.com/health](https://payload-workbench.onrender.com/health)
 
 The frontend deployment URLs are provided for this project; their current availability is not guaranteed by this repository. Payload encoding/decoding, hashing, hash identification, and the shared API health indicator require the Flask backend to be reachable. The IoC sanitizer, Payload Generator, and JWT Decoder operate locally in the browser.
@@ -90,11 +92,12 @@ flowchart LR
     N -->|GET /health| F[Flask API]
     N -->|POST /api/process and /api/chain| F
     N -->|POST /api/identify-hash| F
+    N -->|POST /api/extract-iocs| F
     F -->|Shared rate-limit state in production| R[(Redis-compatible store)]
     N -. local-only tools .-> L[IoC sanitizer and reference generator]
 ~~~
 
-render.yaml configures the backend root directory, install/start commands, and /health health-check path. The public processing and identification endpoints share a moving-window rate limit. Production on Render requires shared Redis-compatible rate-limit storage.
+render.yaml configures the backend root directory, install/start commands, and /health health-check path. All public POST API endpoints share a moving-window rate limit. Production on Render requires shared Redis-compatible rate-limit storage.
 
 ## Project structure
 
@@ -166,15 +169,15 @@ Open [http://localhost:3000](http://localhost:3000). The example .env.local poin
 
 | Variable | Purpose and use | Required? | Safe local example / production setting |
 |---|---|---|---|
-| NEXT_PUBLIC_API_URL | Frontend API base URL used for /health and /api/... requests. It is exposed to the browser bundle. | Optional in development (falls back to http://localhost:8000); required in production when API features are used. | http://localhost:8000; production: https://your-render-service.onrender.com |
-| FRONTEND_ORIGIN | Flask-CORS allowlist. Accepts comma-separated explicit HTTP(S) origins, without paths or wildcards. | Defaults to http://localhost:3000 locally; required when running on Render. | http://localhost:3000; production: https://payload-workbench.vercel.app |
-| API_RATE_LIMIT_PER_MINUTE | Positive integer request limit per client IP, shared by both POST API endpoints. | Optional; defaults to 60. | 60 |
+| NEXT_PUBLIC_API_URL | Public Flask API base URL used for /health and /api/... requests. It is exposed to the browser bundle and must not contain secrets. Production requires HTTPS; local development may use HTTP. | Optional in development (falls back to http://localhost:8000); required in production when API features are used. | http://localhost:8000; production: HTTPS API service URL |
+| FRONTEND_ORIGIN | Flask-CORS allowlist. Accepts comma-separated explicit HTTP(S) origins, without paths or wildcards. | Defaults to http://localhost:3000 locally; required when running on Render. | http://localhost:3000; production: https://sentinel-x-toolkit.vercel.app |
+| API_RATE_LIMIT_PER_MINUTE | Positive integer request limit per client IP, shared by all public POST API endpoints. | Optional; defaults to 60. | 60 |
 | RATE_LIMIT_STORAGE_URI | Flask-Limiter storage backend. | Optional locally (defaults to process memory); required on Render and must use a Redis-compatible redis://, rediss://, or redis+cluster:// URI. | Local example: redis://localhost:6379/0; production: private Redis-compatible URL from Render |
 | PORT | Port used by python app.py; Render supplies this to Gunicorn. | Optional locally; defaults to 8000. | 8000 |
 | NODE_ENV | Next.js environment mode; the API client uses production mode to require an explicit API base URL. | Managed by Next.js; do not normally set manually. | Set automatically by dev/build/start commands |
 | RENDER | Enables Render-specific CORS, proxy-IP, and production rate-limit storage requirements in Flask. | Set by Render; do not set manually for local development. | Set automatically by Render |
 
-On Render, the platform sets RENDER; the app uses it to require an explicit CORS origin and Redis-compatible rate-limit storage. Do not set RATE_LIMIT_STORAGE_URI to memory:// in production. Keep production storage URLs private, and do not put credentials in NEXT_PUBLIC_API_URL.
+On Render, the platform sets RENDER; the app uses it to require an explicit CORS origin and Redis-compatible rate-limit storage. Do not set RATE_LIMIT_STORAGE_URI to memory:// in production. Keep production storage URLs private, and do not put credentials in NEXT_PUBLIC_API_URL. The frontend validates that a configured production NEXT_PUBLIC_API_URL uses HTTPS; this variable is public browser configuration, not a place for credentials.
 
 ## API reference
 
@@ -265,6 +268,8 @@ Error responses use the JSON shape { "success": false, "result": "", "error": "<
 ## Security and responsible use
 
 - Flask-CORS allows only explicit HTTP(S) origins. The Render deployment requires FRONTEND_ORIGIN; wildcard and path-bearing origins are rejected.
+- The frontend Content Security Policy is configured in next.config.mjs. It retains unsafe-inline for the inline Next.js/theme bootstrap compatibility required by the current app; production does not allow unsafe-eval and the source lists do not use wildcards. Moving to nonces would require request-aware rendering and was not introduced as part of this targeted hardening.
+- Vercel documents a default Strict-Transport-Security response header with max-age=63072000 seconds (two years). The app does not duplicate it or apply includeSubDomains/preload; see [Vercel response headers](https://vercel.com/docs/headers/response-headers).
 - /api/process, /api/chain, /api/identify-hash, and /api/extract-iocs share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. One chain call counts as one request. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
 - In Render mode, the limiter validates the single CF-Connecting-IP address as the client IP and does not trust X-Forwarded-For. If that trusted header is missing or invalid, the request fails with HTTP 503. Outside Render, local/test use the socket peer address and do not trust forwarded headers.
 - The request body is capped at 10 KiB; API inputs and required fields are validated, and unexpected server errors return a generic response.
@@ -299,15 +304,15 @@ The backend test suite uses pytest and Flask's test client. It covers processing
 
 render.yaml sets the backend root to security-payload-workbench-backend, installs requirements.txt, starts Gunicorn with two workers and a 30-second timeout on the platform-provided $PORT, and uses /health as its health-check path. Revisit the worker count if the Render instance size changes. Configure:
 
-1. FRONTEND_ORIGIN as the exact deployed frontend origin. For the supplied frontend URL, that is https://payload-workbench.vercel.app.
+1. FRONTEND_ORIGIN as the exact deployed frontend origin: https://sentinel-x-toolkit.vercel.app.
 2. RATE_LIMIT_STORAGE_URI as the private internal connection URL for a Redis-compatible Render Key Value service. Keep it in the same region as the backend where possible.
 3. API_RATE_LIMIT_PER_MINUTE as a positive integer if the default of 60 is not appropriate.
 
-Confirm that Render reports the service healthy and that https://payload-workbench.onrender.com/health returns {"status":"ok"}.
+The currently documented Flask health endpoint is https://payload-workbench.onrender.com/health and should return {"status":"ok"} when that Render service is available.
 
 ### Next.js frontend on Vercel
 
-Set the Vercel project root to security-payload-workbench-dashboard. Use the Next.js framework and pnpm lockfile. Set NEXT_PUBLIC_API_URL to the Flask service base URL (for the supplied deployment, https://payload-workbench.onrender.com, with no /api/process suffix), then build and deploy. Since this value is compiled into the browser bundle, redeploy after changing it.
+Set the Vercel project root to security-payload-workbench-dashboard. Use the Next.js framework and pnpm lockfile. Set NEXT_PUBLIC_API_URL to the HTTPS Flask service base URL (currently documented as https://payload-workbench.onrender.com, with no /api/process suffix), then build and deploy. Since this value is compiled into the browser bundle, redeploy after changing it.
 
 When changing frontend domains, update Render's FRONTEND_ORIGIN to the exact origin and restart/redeploy the backend. Test an API operation and check that the health endpoint responds; browser requests also require the CORS origin to match exactly.
 
@@ -316,7 +321,7 @@ When changing frontend domains, update Render's FRONTEND_ORIGIN to the exact ori
 - **API shown offline:** Open the configured API base URL with /health appended. Confirm the Flask service is running and returns {"status":"ok"}.
 - **Frontend API or CORS errors:** Check NEXT_PUBLIC_API_URL for the service base URL (no endpoint suffix), then make FRONTEND_ORIGIN exactly match the browser's scheme, host, and port. Restart/redeploy after changes.
 - **Production service fails to start:** On Render, verify FRONTEND_ORIGIN, a valid positive API_RATE_LIMIT_PER_MINUTE, and a private Redis-compatible RATE_LIMIT_STORAGE_URI. A missing or non-Redis storage URL prevents startup.
-- **Requests return 429:** The per-IP moving-window request limit is shared by both POST endpoints. Wait until earlier requests age out of the window or set an appropriate positive limit.
+- **Requests return 429:** The per-IP moving-window request limit is shared by all public POST API endpoints. Wait until earlier requests age out of the window or set an appropriate positive limit.
 - **Requests return 503:** Check that Render supplies a valid single CF-Connecting-IP value and that the Redis-compatible rate-limit store is available. Storage failures intentionally fail closed.
 - **Dependency install or frontend build errors:** Use Node.js compatible with the Next.js requirement, Corepack with pnpm 12.3.4, and run the frozen-lockfile install from the dashboard directory. Install backend packages from requirements.txt.
 - **Local Flask connection fails:** Start the backend on port 8000 and verify NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local.

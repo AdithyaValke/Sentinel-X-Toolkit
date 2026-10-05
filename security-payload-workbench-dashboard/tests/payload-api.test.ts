@@ -161,3 +161,36 @@ test('health check reports only an explicit successful backend status', async ()
     globalThis.fetch = originalFetch
   }
 })
+
+test('API base URL requires HTTPS in production and preserves local HTTP development', async () => {
+  const originalFetch = globalThis.fetch
+  const originalNodeEnv = process.env.NODE_ENV
+  const originalApiUrl = process.env.NEXT_PUBLIC_API_URL
+  installBrowserTimerShim()
+  try {
+    Reflect.set(process.env, 'NODE_ENV', 'production')
+    Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'http://api.example.test')
+    await assert.rejects(callBackend('base64_encode', 'hello'), /must use HTTPS in production/i)
+
+    let requestedUrl = ''
+    globalThis.fetch = async (input) => {
+      requestedUrl = String(input)
+      return new Response(JSON.stringify({ success: true, result: 'aGVsbG8=', error: null }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'https://api.example.test/')
+    assert.equal((await callBackend('base64_encode', 'hello')).result, 'aGVsbG8=')
+    assert.equal(requestedUrl, 'https://api.example.test/api/process')
+
+    Reflect.set(process.env, 'NODE_ENV', 'development')
+    Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+    assert.equal((await callBackend('base64_encode', 'hello')).success, true)
+    assert.equal(requestedUrl, 'http://localhost:8000/api/process')
+  } finally {
+    globalThis.fetch = originalFetch
+    Reflect.deleteProperty(globalThis, 'window')
+    if (originalNodeEnv === undefined) Reflect.deleteProperty(process.env, 'NODE_ENV')
+    else Reflect.set(process.env, 'NODE_ENV', originalNodeEnv)
+    if (originalApiUrl === undefined) Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_API_URL')
+    else Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', originalApiUrl)
+  }
+})

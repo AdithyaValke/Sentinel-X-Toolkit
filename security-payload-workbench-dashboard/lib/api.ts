@@ -59,7 +59,20 @@ function getApiBaseUrl(): string {
   if (!configuredUrl && process.env.NODE_ENV === 'production') {
     throw new Error('NEXT_PUBLIC_API_URL is not configured.')
   }
-  return (configuredUrl || 'http://localhost:8000').replace(/\/+$/, '')
+  const baseUrl = configuredUrl || 'http://localhost:8000'
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(baseUrl)
+  } catch {
+    throw new Error('NEXT_PUBLIC_API_URL must be an absolute HTTP(S) URL.')
+  }
+  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+    throw new Error('NEXT_PUBLIC_API_URL must use HTTP or HTTPS.')
+  }
+  if (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'https:') {
+    throw new Error('NEXT_PUBLIC_API_URL must use HTTPS in production.')
+  }
+  return baseUrl.replace(/\/+$/, '')
 }
 
 export async function checkBackendHealth(signal?: AbortSignal): Promise<boolean> {
