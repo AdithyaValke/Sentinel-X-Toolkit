@@ -14,9 +14,83 @@ from hash_identifier import analyze_hashes
 
 CHAIN_MAX_STEPS = 10
 CHAIN_MAX_OUTPUT_BYTES = 64 * 1024
+IOC_CATEGORIES = {"ip", "domain", "hash", "email"}
+
+
+def extract_iocs(input_text: str, categories: list[str]) -> list[dict]:
+    """Extract potential indicators, retaining defanged spelling and source-line context."""
+    found = {}
+    lines = input_text.splitlines() or [input_text]
+
+    def add(category, value, line):
+        value = value.rstrip(".,;:!?) ]}\"'")
+        if not value:
+            return
+        key = (category, value.casefold())
+        if key in found:
+            found[key]["occurrences"] += 1
+        else:
+            found[key] = {"category": category, "value": value, "occurrences": 1, "context": line.strip()[:240]}
+
+    for line in lines:
+        occupied = []
+        ip_spans = []
+        if "ip" in categories:
+            # Normalize only the established defanged dot spelling for validation.
+            candidate_re = re.compile(r"(?<![\w:])(?:\d{1,3}(?:\[\.\]|\.)\d{1,3}(?:(?:\[\.\]|\.)\d{1,3}){2}(?::\d{1,5})?|[0-9A-Fa-f:]{2,}(?:%[\w.-]+)?)(?![\w:])")
+            for match in candidate_re.finditer(line):
+                candidate = match.group().replace("[.]", ".")
+                if "." in candidate and re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}:\d{1,5}", candidate):
+                    candidate = candidate.rsplit(":", 1)[0]
+                try:
+                    address = ipaddress.ip_address(candidate.split("%")[0])
+                except ValueError:
+                    continue
+                display = match.group() if "[.]" in match.group() else str(address)
+                add("ip", display, line)
+                ip_spans.append(match.span())
+        if "email" in categories:
+            email_re = re.compile(r"(?<![\w.+-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+(?:@|\[@\])[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:(?:\.|\[\.\])[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+", re.I)
+            for match in email_re.finditer(line):
+                add("email", match.group(), line)
+                occupied.append(match.span())
+        if "domain" in categories:
+            # URLs include their path; defanged scheme and dot notation are preserved verbatim.
+            url_re = re.compile(r"(?i)(?:https?://|hxxps?://)[^\s<>\"']+")
+            domain_re = re.compile(r"(?i)(?<![\w@.-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\[\.\]|\.)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:(?:\[\.\]|\.)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*(?![\w-])")
+            url_spans = []
+            for match in url_re.finditer(line):
+                value = match.group().rstrip(".,;:!?) ]}")
+                authority = re.split(r"[/?#]", re.sub(r"(?i)^(?:https?|hxxps?)://", "", value), maxsplit=1)[0].rsplit("@", 1)[-1]
+                host = authority.rsplit(":", 1)[0] if authority.count(":") == 1 else authority
+                try:
+                    ipaddress.ip_address(host.replace("[.]", ".").strip("[]"))
+                    url_host_is_ip = True
+                except ValueError:
+                    url_host_is_ip = False
+                if not url_host_is_ip:
+                    add("domain", value, line)
+                url_spans.append(match.span())
+            for match in domain_re.finditer(line):
+                if any(start <= match.start() < end for start, end in url_spans) or any(start <= match.start() < end for start, end in occupied) or any(start <= match.start() < end for start, end in ip_spans):
+                    continue
+                # Numeric dotted quads belong to the IP validator, not domains.
+                if re.fullmatch(r"\d+(?:\.\d+){3}", match.group().replace("[.]", ".")):
+                    continue
+                add("domain", match.group(), line)
+        if "hash" in categories:
+            for match in re.finditer(r"(?<![\w])[A-Fa-f0-9]{128}(?![\w])|(?<![\w])[A-Fa-f0-9]{64}(?![\w])|(?<![\w])[A-Fa-f0-9]{40}(?![\w])|(?<![\w])[A-Fa-f0-9]{32}(?![\w])", line):
+                add("hash", match.group(), line)
+    return sorted(found.values(), key=lambda item: (item["category"], item["value"].casefold()))
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024
+
+
+def _safe_api_error(message):
+    if request.path == "/api/extract-iocs":
+        return jsonify({"success": False, "results": [], "summary": {}, "error": message})
+    return jsonify({"success": False, "result": "", "error": message})
 
 
 def _rate_limit_configuration(environment):
@@ -65,7 +139,7 @@ def verified_client_ip() -> str:
 
 
 def _rate_limit_response(_request_limit):
-    response = jsonify({"success": False, "result": "", "error": "Rate limit exceeded. Try again later."})
+    response = _safe_api_error("Rate limit exceeded. Try again later.")
     response.status_code = 429
     return response
 
@@ -363,6 +437,28 @@ def identify_hash_endpoint():
         return jsonify({"success": False, "result": "", "error": str(e)}), 400
 
 
+@app.route('/api/extract-iocs', methods=['POST'])
+@public_api_rate_limit()
+def extract_iocs_endpoint():
+    if not request.is_json:
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "Content-Type must be application/json"}), 415
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "Malformed JSON payload"}), 400
+    input_text, categories = data.get("input_text"), data.get("categories")
+    if not isinstance(input_text, str):
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "'input_text' must be provided as a string"}), 400
+    if not input_text.strip():
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "Input text cannot be empty"}), 400
+    if not isinstance(categories, list) or not categories or any(not isinstance(item, str) for item in categories):
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "'categories' must be a non-empty array of category identifiers"}), 400
+    if any(item not in IOC_CATEGORIES for item in categories):
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "Unsupported category"}), 400
+    results = extract_iocs(input_text, list(dict.fromkeys(categories)))
+    counts = {category: sum(item["occurrences"] for item in results if item["category"] == category) for category in sorted(IOC_CATEGORIES)}
+    return jsonify({"success": True, "results": results, "summary": {"unique": len(results), "occurrences": sum(item["occurrences"] for item in results), "by_category": counts}, "error": None})
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok"})
@@ -370,19 +466,21 @@ def health():
 
 @app.errorhandler(413)
 def request_too_large(_error):
+    if request.path == "/api/extract-iocs":
+        return jsonify({"success": False, "results": [], "summary": {}, "error": "Payload too large (max 10KB)"}), 413
     return jsonify({"success": False, "result": "", "error": "Payload too large (max 10KB)"}), 413
 
 
 @app.errorhandler(ClientIpUnavailable)
 def client_ip_unavailable(_error):
-    return jsonify({"success": False, "result": "", "error": "Unable to verify client IP"}), 503
+    return _safe_api_error("Unable to verify client IP"), 503
 
 
 @app.errorhandler(RateLimitExceeded)
 def rate_limit_exceeded(error):
     # Preserve Flask-Limiter headers while guaranteeing the public JSON error shape.
     response = error.get_response() or _rate_limit_response(None)
-    response.set_data(app.json.dumps({"success": False, "result": "", "error": "Rate limit exceeded. Try again later."}))
+    response.set_data(app.json.dumps(_safe_api_error("Rate limit exceeded. Try again later.").get_json()))
     response.content_type = "application/json"
     response.status_code = 429
     return response
@@ -395,9 +493,9 @@ def storage_or_unexpected_error(error):
 
     if isinstance(error, StorageError):
         app.logger.error("Rate-limit storage is unavailable")
-        return jsonify({"success": False, "result": "", "error": "Request protection is temporarily unavailable"}), 503
+        return _safe_api_error("Request protection is temporarily unavailable"), 503
     app.logger.error("Unhandled request error (%s)", type(error).__name__)
-    return jsonify({"success": False, "result": "", "error": "Internal server error"}), 500
+    return _safe_api_error("Internal server error"), 500
 
 
 @app.errorhandler(404)

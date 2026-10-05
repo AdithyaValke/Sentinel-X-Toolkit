@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, Clipboard, Download, FileText, Search, ShieldAlert, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { extractIocs, type IndicatorCategory } from '@/lib/api'
+import { LatestRequest } from '@/lib/latest-request'
 
-type IndicatorCategory = 'ip' | 'domain' | 'hash' | 'email'
 type FilterCategory = 'all' | IndicatorCategory
 
 type Indicator = {
@@ -22,31 +23,6 @@ const categoryOptions: { id: IndicatorCategory; label: string; detail: string }[
   { id: 'email', label: 'Email addresses', detail: 'Mailbox identifiers' },
 ]
 
-const patterns: Record<IndicatorCategory, RegExp> = {
-  ip: /(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}|(?:[\da-f]{1,4}:){2,7}[\da-f]{1,4})(?::\d{1,5})?(?![\w.])/gi,
-  domain: /(?:https?:\/\/|hxxps?:\/\/)?(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+[a-z]{2,}(?::\d{1,5})?(?:[/?#][^\s<>]*)?/gi,
-  hash: /(?<![a-f\d])(?:[a-f\d]{32}|[a-f\d]{40}|[a-f\d]{64}|[a-f\d]{128})(?![a-f\d])/gi,
-  email: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
-}
-
-function extractIndicators(input: string, selected: Set<IndicatorCategory>): Indicator[] {
-  const found = new Map<string, Indicator>()
-  const lines = input.split(/\r?\n/)
-  selected.forEach((category) => {
-    const regex = patterns[category]
-    lines.forEach((line) => {
-      for (const match of line.matchAll(regex)) {
-        const value = match[0].replace(/[),.;]+$/, '')
-        const key = `${category}:${value.toLowerCase()}`
-        const existing = found.get(key)
-        if (existing) existing.occurrences += 1
-        else found.set(key, { id: key, category, value, occurrences: 1, context: line.trim() })
-      }
-    })
-  })
-  return Array.from(found.values()).sort((a, b) => a.category.localeCompare(b.category) || a.value.localeCompare(b.value))
-}
-
 const labels: Record<IndicatorCategory, string> = { ip: 'IP', domain: 'URL / DOMAIN', hash: 'HASH', email: 'EMAIL' }
 const filterLabels: Record<FilterCategory, string> = { all: 'All', ip: 'IP addresses', domain: 'Domains and URLs', hash: 'Hashes', email: 'Emails' }
 
@@ -60,6 +36,9 @@ export function IocExtractor() {
   const [isExtracting, setIsExtracting] = useState(false)
   const [message, setMessage] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const latestRequest = useRef(new LatestRequest())
+
+  useEffect(() => () => latestRequest.current.cancel(), [])
 
   const filteredResults = useMemo(() => results.filter((item) => (
     (filter === 'all' || item.category === filter) &&
@@ -68,18 +47,28 @@ export function IocExtractor() {
   const occurrences = results.reduce((sum, item) => sum + item.occurrences, 0)
   const categoryCount = new Set(results.map((item) => item.category)).size
 
-  function extract() {
+  async function extract() {
     if (!input.trim() || selected.size === 0) return
+    const { id, signal } = latestRequest.current.begin()
     setIsExtracting(true)
     setMessage('')
-    window.setTimeout(() => {
-      setResults(extractIndicators(input, selected))
-      setIsExtracting(false)
+    try {
+      const response = await extractIocs(input, Array.from(selected), signal)
+      if (!latestRequest.current.isCurrent(id)) return
+      setResults(response.results.map((item) => ({ ...item, id: `${item.category}:${item.value.toLowerCase()}` })))
       setFilter('all')
-    }, 180)
+      setMessage(response.results.length ? 'Potential indicators extracted. Values are not reputation-checked.' : 'No indicators found.')
+    } catch (error) {
+      if (!latestRequest.current.isCurrent(id)) return
+      setMessage(error instanceof Error ? error.message : 'Extraction failed. Please try again.')
+    } finally {
+      if (latestRequest.current.isCurrent(id)) setIsExtracting(false)
+    }
   }
 
   function toggleCategory(category: IndicatorCategory) {
+    latestRequest.current.cancel()
+    setIsExtracting(false)
     setSelected((current) => {
       const next = new Set(current)
       if (next.has(category)) next.delete(category)
@@ -89,9 +78,13 @@ export function IocExtractor() {
   }
 
   async function copyValue(value: string, id: string) {
-    await navigator.clipboard.writeText(value)
-    setCopiedId(id)
-    window.setTimeout(() => setCopiedId(null), 1400)
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedId(id)
+      window.setTimeout(() => setCopiedId(null), 1400)
+    } catch {
+      setMessage('Clipboard access failed. Select and copy the indicator manually.')
+    }
   }
 
   function copyAll() {
@@ -120,16 +113,16 @@ export function IocExtractor() {
             <div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300"><ShieldAlert className="size-5" /></span><div><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300">Analysis Lab / Tool</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">IoC Extractor</h2></div></div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Extract and organize potential indicators of compromise from logs, alerts, and unstructured text.</p>
           </div>
-          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300">Local analysis</span>
+          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300">Flask API</span>
         </div>
 
         <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
           <section className="flex min-h-[680px] flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-5 shadow-xl shadow-black/10 sm:p-6">
             <div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-semibold text-white">Input Data</h3><p className="mt-1 text-xs leading-5 text-slate-500">Paste logs, alert data, email headers, or incident reports.</p></div><FileText className="size-5 text-slate-600" /></div>
-            <div className="relative mt-5 flex min-h-0 flex-1 flex-col"><label htmlFor="ioc-input" className="sr-only">Text to analyze</label><textarea id="ioc-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder={'Paste security telemetry here...\nExample: connection from 192.0.2.10 to hxxps://cdn.example.net'} className="min-h-[300px] flex-1 resize-none rounded-xl border border-white/10 bg-black/20 p-4 font-mono text-xs leading-6 text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/10" /><div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-600"><span>{input.length.toLocaleString()} characters</span>{input && <button type="button" onClick={() => { setInput(''); setResults([]) }} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-rose-300"><Trash2 className="size-3" /> Clear input</button>}</div></div>
-            <div className="mt-6 border-t border-white/[0.08] pt-5"><div className="flex items-center justify-between"><div><h4 className="text-sm font-semibold text-white">Extraction Settings</h4><p className="mt-1 text-xs text-slate-500">Select the indicator types to find.</p></div><button type="button" onClick={() => setSelected(new Set(categoryOptions.map(({ id }) => id)))} className="font-mono text-[10px] uppercase tracking-wider text-cyan-300 hover:text-cyan-200">Select all</button></div><div className="mt-4 grid gap-2 sm:grid-cols-2">{categoryOptions.map((option) => <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 hover:border-cyan-400/30"><input type="checkbox" checked={selected.has(option.id)} onChange={() => toggleCategory(option.id)} className="mt-0.5 size-4 accent-cyan-400" /><span><span className="block text-xs font-medium text-slate-200">{option.label}</span><span className="mt-0.5 block text-[10px] text-slate-600">{option.detail}</span></span></label>)}</div></div>
+            <div className="relative mt-5 flex min-h-0 flex-1 flex-col"><label htmlFor="ioc-input" className="sr-only">Text to analyze</label><textarea id="ioc-input" value={input} onChange={(event) => { latestRequest.current.cancel(); setIsExtracting(false); setInput(event.target.value) }} placeholder={'Paste security telemetry here...\nExample: connection from 192.0.2.10 to hxxps://cdn.example.net'} className="min-h-[300px] flex-1 resize-none rounded-xl border border-white/10 bg-black/20 p-4 font-mono text-xs leading-6 text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/10" /><div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-600"><span>{input.length.toLocaleString()} characters</span>{input && <button type="button" onClick={() => { latestRequest.current.cancel(); setIsExtracting(false); setInput(''); setResults([]) }} className="inline-flex items-center gap-1.5 text-slate-500 hover:text-rose-300"><Trash2 className="size-3" /> Clear input</button>}</div></div>
+            <div className="mt-6 border-t border-white/[0.08] pt-5"><div className="flex items-center justify-between"><div><h4 className="text-sm font-semibold text-white">Extraction Settings</h4><p className="mt-1 text-xs text-slate-500">Select the indicator types to find.</p></div><button type="button" onClick={() => { latestRequest.current.cancel(); setIsExtracting(false); setSelected(new Set(categoryOptions.map(({ id }) => id))) }} className="font-mono text-[10px] uppercase tracking-wider text-cyan-300 hover:text-cyan-200">Select all</button></div><div className="mt-4 grid gap-2 sm:grid-cols-2">{categoryOptions.map((option) => <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 hover:border-cyan-400/30"><input type="checkbox" checked={selected.has(option.id)} onChange={() => toggleCategory(option.id)} className="mt-0.5 size-4 accent-cyan-400" /><span><span className="block text-xs font-medium text-slate-200">{option.label}</span><span className="mt-0.5 block text-[10px] text-slate-600">{option.detail}</span></span></label>)}</div></div>
             <button type="button" disabled={!input.trim() || selected.size === 0 || isExtracting} onClick={extract} className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">{isExtracting ? 'Extracting indicators...' : 'Extract Indicators'}</button>
-            <p className="mt-3 text-center font-mono text-[10px] text-slate-600">Content is processed locally in this browser and is not persisted.</p>
+            <p className="mt-3 text-center font-mono text-[10px] text-slate-600">Text is sent to the configured Flask API for extraction. It is not stored by this tool.</p>
           </section>
 
           <section className="flex min-h-[680px] min-w-0 flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-5 shadow-xl shadow-black/10 sm:p-6">
@@ -144,5 +137,4 @@ export function IocExtractor() {
   )
 }
 
-export type { Indicator, IndicatorCategory }
-export { extractIndicators }
+export type { Indicator }

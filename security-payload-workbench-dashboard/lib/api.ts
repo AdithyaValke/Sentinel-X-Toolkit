@@ -163,6 +163,56 @@ export async function callBackend(
   }
 }
 
+export type IndicatorCategory = 'ip' | 'domain' | 'hash' | 'email'
+export interface IocResult { category: IndicatorCategory; value: string; occurrences: number; context: string }
+export interface IocResponse {
+  success: boolean
+  results: IocResult[]
+  summary: { unique: number; occurrences: number; by_category: Record<IndicatorCategory, number> }
+  error: string | null
+}
+
+function isIocResponse(value: unknown): value is IocResponse {
+  if (!value || typeof value !== 'object') return false
+  const data = value as Record<string, unknown>
+  const summary = data.summary as Record<string, unknown> | null
+  const counts = summary?.by_category as Record<string, unknown> | null
+  return typeof data.success === 'boolean' && Array.isArray(data.results) && data.results.every((item) => {
+    if (!item || typeof item !== 'object') return false
+    const result = item as Record<string, unknown>
+    return ['ip', 'domain', 'hash', 'email'].includes(String(result.category)) && typeof result.value === 'string' && Number.isInteger(result.occurrences) && (result.occurrences as number) > 0 && typeof result.context === 'string'
+  }) && !!summary && Number.isInteger(summary.unique) && Number.isInteger(summary.occurrences) && !!counts && ['ip', 'domain', 'hash', 'email'].every((key) => Number.isInteger(counts[key])) && (data.error === null || typeof data.error === 'string')
+}
+
+export async function extractIocs(inputText: string, categories: IndicatorCategory[], signal?: AbortSignal): Promise<IocResponse> {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/extract-iocs`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input_text: inputText, categories }), signal: controller.signal,
+    })
+    if (!(response.headers.get('content-type') ?? '').includes('application/json')) throw new Error(`The API returned an unexpected response (HTTP ${response.status}).`)
+    const data: unknown = await response.json()
+    if (!isIocResponse(data)) throw new Error('The API returned an invalid response.')
+    if (!response.ok || !data.success) throw new Error(data.error || `The API returned HTTP ${response.status}.`)
+    return data
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      if (signal?.aborted) throw error
+      throw new Error('The request timed out. Check that the Flask API is running and reachable.')
+    }
+    if (error instanceof TypeError) throw new Error('Could not reach the Flask API. Check its URL and CORS settings.')
+    throw error
+  } finally {
+    signal?.removeEventListener('abort', abort)
+    clearTimeout(timeout)
+  }
+}
+
 export interface ChainResponse {
   steps: { operation: string; output: string }[]
   final: string

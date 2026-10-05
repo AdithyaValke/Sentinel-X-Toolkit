@@ -30,6 +30,91 @@ def test_health(client):
     assert response.get_json() == {"status": "ok"}
 
 
+def test_extract_iocs_categories_context_and_counts(client):
+    text = "Alert from 192.0.2.8 and 2001:db8::1\nvisit hxxps://bad[.]example/path and bad[.]example\ncontact ops@example.org\n" + "a"*32 + " " + "b"*40 + " " + "c"*64 + " " + "d"*128 + "\n192.0.2.8"
+    response = client.post('/api/extract-iocs', json={"input_text": text, "categories": ["ip", "domain", "hash", "email"]})
+    assert response.status_code == 200
+    data = response.get_json()
+    by_value = {item["value"]: item for item in data["results"]}
+    assert by_value["192.0.2.8"]["occurrences"] == 2
+    assert by_value["2001:db8::1"]["category"] == "ip"
+    assert by_value["hxxps://bad[.]example/path"]["category"] == "domain"
+    assert by_value["bad[.]example"]["category"] == "domain"
+    assert by_value["ops@example.org"]["context"].startswith("contact")
+    assert {len(value) for value in by_value if set(value) <= set('abcd')} >= {32, 40, 64, 128}
+    only = client.post('/api/extract-iocs', json={"input_text": "192.0.2.2 host.example", "categories": ["domain"]}).get_json()
+    assert [row["category"] for row in only["results"]] == ["domain"]
+
+
+@pytest.mark.parametrize(("value", "category"), [
+    ("192.0.2.1", "ip"),
+    ("192[.]0[.]2[.]1", "ip"),
+    ("hxxps://192.0.2.1/path", "ip"),
+    ("10[.]0[.]0[.]15", "ip"),
+    ("2001:db8::1", "ip"),
+    ("backup-c2[.]net", "domain"),
+    ("evil-c2[.]com", "domain"),
+    ("hxxps://malicious[.]example[.]com/payload.exe", "domain"),
+    ("attacker[@]example[.]com", "email"),
+    ("backup-c2-01.example.net", "domain"),
+    ("999[.]999[.]999[.]999", None),
+])
+def test_ioc_defanged_classification_is_exclusive(client, value, category):
+    response = client.post('/api/extract-iocs', json={"input_text": value, "categories": ["ip", "domain", "email"]})
+    assert response.status_code == 200
+    results = response.get_json()["results"]
+    assert [row["category"] for row in results] == ([category] if category else [])
+    if category:
+        expected_value = "192.0.2.1" if value == "hxxps://192.0.2.1/path" else value
+        assert results[0]["value"] == expected_value
+
+
+def test_defanged_ip_and_email_do_not_leak_into_domain_results(client):
+    text = "192[.]0[.]2[.]1 192.0.2.1 attacker[@]example[.]com backup-c2[.]net"
+    results = client.post('/api/extract-iocs', json={"input_text": text, "categories": ["ip", "domain", "email"]}).get_json()["results"]
+    by_category = {}
+    for row in results:
+        by_category.setdefault(row["category"], []).append(row)
+    assert [row["value"] for row in by_category["ip"]] == ["192.0.2.1", "192[.]0[.]2[.]1"]
+    assert [row["value"] for row in by_category["email"]] == ["attacker[@]example[.]com"]
+    assert [row["value"] for row in by_category["domain"]] == ["backup-c2[.]net"]
+    assert all(row["context"] == text for row in results)
+
+
+def test_hash_occurrences_and_context_are_preserved(client):
+    digest = "a" * 32
+    response = client.post('/api/extract-iocs', json={"input_text": f"sample {digest}\nrepeat {digest}", "categories": ["hash"]})
+    assert response.status_code == 200
+    assert response.get_json()["results"] == [{"category": "hash", "value": digest, "occurrences": 2, "context": f"sample {digest}"}]
+
+
+@pytest.mark.parametrize(("payload", "status"), [
+    ({"input_text": "  ", "categories": ["ip"]}, 400),
+    ({"input_text": "x"}, 400),
+    ({"input_text": 7, "categories": ["ip"]}, 400),
+    ({"input_text": "x", "categories": "ip"}, 400),
+    ({"input_text": "x", "categories": ["bad"]}, 400),
+])
+def test_extract_iocs_validation(client, payload, status):
+    assert client.post('/api/extract-iocs', json=payload).status_code == status
+
+
+def test_extract_iocs_malformed_empty_no_match_invalid_indicators_and_limits(client):
+    assert client.post('/api/extract-iocs', data="{", content_type="application/json").status_code == 400
+    assert client.post('/api/extract-iocs', json={"input_text": "none", "categories": ["ip"]}).get_json()["results"] == []
+    data = client.post('/api/extract-iocs', json={"input_text": "999.1.1.1 12345678901234567890123456789012x", "categories": ["ip", "hash"]}).get_json()
+    assert data["results"] == []
+    assert client.post('/api/extract-iocs', json={"input_text": "x"*11000, "categories": ["ip"]}).status_code == 413
+
+
+def test_extract_iocs_security_headers_and_rate_limit_share(client):
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
+    response = client.post('/api/extract-iocs', json={"input_text": "none", "categories": ["ip"]})
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert client.post('/api/extract-iocs', json={"input_text": "none", "categories": ["ip"]}).status_code == 429
+
+
 def test_chain_valid_two_and_ten_steps(client):
     response = client.post("/api/chain", json={"input_text": "hello world", "steps": [
         {"operation": "url_encode"}, {"operation": "base64_encode"},

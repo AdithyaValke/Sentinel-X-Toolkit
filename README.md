@@ -82,7 +82,7 @@ Dependency versions are declared in the dashboard package.json, pnpm-lock.yaml, 
 
 ## Architecture and API
 
-The browser calls the Flask service using the base URL in NEXT_PUBLIC_API_URL. Payload/hash processing uses POST /api/process; operation pipelines use POST /api/chain; hash-format analysis also has a dedicated POST /api/identify-hash endpoint. The frontend health indicator calls GET /health. Analysis Lab indicator sanitization and reference generation are client-side.
+The browser calls the Flask service using the base URL in NEXT_PUBLIC_API_URL. Payload/hash processing uses POST /api/process; operation pipelines use POST /api/chain; hash-format analysis also has a dedicated POST /api/identify-hash endpoint; IoC extraction uses POST /api/extract-iocs. The frontend health indicator calls GET /health. Analysis Lab indicator sanitization and reference generation are client-side. IoC extraction is processed by Flask.
 
 ~~~mermaid
 flowchart LR
@@ -120,7 +120,7 @@ render.yaml configures the backend root directory, install/start commands, and /
     └── .env.example
 ~~~
 
-Frontend routes are /dashboard, /payload-tools, /chain-builder, /hash-tools, /identify-hash, and /security-lab.
+Frontend routes are /dashboard, /payload-tools, /chain-builder, /hash-tools, /identify-hash, and /security-lab. IoC extraction is processed by the Flask API; submitted text is not stored by this tool.
 
 ## Prerequisites
 
@@ -178,7 +178,7 @@ On Render, the platform sets RENDER; the app uses it to require an explicit CORS
 
 ## API reference
 
-All processing requests must use Content-Type: application/json. The API limits request bodies to 10 KiB. The two POST endpoints share the configured per-IP moving-window limit.
+All processing requests must use Content-Type: application/json. The API limits request bodies to 10 KiB. POST endpoints share the configured per-IP moving-window limit.
 
 ### GET /health
 
@@ -224,6 +224,16 @@ Accepts hash (string); input_text is also accepted as a fallback field. Empty in
 
 Candidate identification uses format clues and structured prefixes. It does not verify a candidate by hashing a known input.
 
+### POST /api/extract-iocs
+
+Accepts non-empty `input_text` and a non-empty `categories` array containing one or more of `ip`, `domain`, `hash`, and `email`. Request bodies use the existing 10 KiB limit and shared API rate limiter. Domains and URLs retain their submitted spelling, including defanged forms. Results represent potential indicators and do not include reputation or maliciousness checks.
+
+~~~json
+{"input_text":"Alert from 192.0.2.10 to hxxps://cdn[.]example.net","categories":["ip","domain"]}
+~~~
+
+Successful responses contain `success`, unique `results` (`category`, `value`, `occurrences`, `context`), `summary` (`unique`, total `occurrences`, and per-category counts), and `error: null`. Failures return `success: false`, empty results, an empty summary, and a safe `error` message. Submitted text is sent to Flask and is not saved to browser storage, activity history, logs, or analytics by the extractor.
+
 ### POST /api/chain
 
 Accepts `input_text` (string) and `steps` (a non-empty array of at most 10 objects, each containing only an `operation` string). Allowed operations are `base64_encode`, `base64_decode`, `url_encode`, `url_decode`, `hex_encode`, and `hex_decode`. Each transform reuses the corresponding `/api/process` implementation and feeds its string result into the next step. Hashing and hash identification are excluded.
@@ -255,7 +265,7 @@ Error responses use the JSON shape { "success": false, "result": "", "error": "<
 ## Security and responsible use
 
 - Flask-CORS allows only explicit HTTP(S) origins. The Render deployment requires FRONTEND_ORIGIN; wildcard and path-bearing origins are rejected.
-- /api/process, /api/chain, and /api/identify-hash share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. One chain call counts as one request. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
+- /api/process, /api/chain, /api/identify-hash, and /api/extract-iocs share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. One chain call counts as one request. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
 - In Render mode, the limiter validates the single CF-Connecting-IP address as the client IP and does not trust X-Forwarded-For. If that trusted header is missing or invalid, the request fails with HTTP 503. Outside Render, local/test use the socket peer address and do not trust forwarded headers.
 - The request body is capped at 10 KiB; API inputs and required fields are validated, and unexpected server errors return a generic response.
 - The app does not execute Analysis Lab output or initiate network connections for generated references. Manually running a generated reachability check is a separate action and can contact the entered host.
