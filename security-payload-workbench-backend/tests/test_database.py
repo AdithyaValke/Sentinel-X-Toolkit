@@ -110,7 +110,7 @@ def test_postgresql_engine_uses_a_small_lazy_connection_pool():
         database.dispose()
 
 
-def test_initial_migration_is_empty_and_repeatable(tmp_path, monkeypatch):
+def test_authentication_migration_is_repeatable_and_reversible(tmp_path, monkeypatch):
     database_file = tmp_path / "migration-test.sqlite"
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_file.as_posix()}")
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
@@ -120,8 +120,28 @@ def test_initial_migration_is_empty_and_repeatable(tmp_path, monkeypatch):
 
     database = create_database(f"sqlite:///{database_file.as_posix()}")
     try:
-        assert inspect(database.engine).get_table_names() == ["alembic_version"]
+        inspector = inspect(database.engine)
+        expected_tables = {
+            "alembic_version", "users", "sessions", "investigations", "investigation_iocs",
+            "investigation_findings", "investigation_evidence", "investigation_events",
+        }
+        assert set(inspector.get_table_names()) == expected_tables
+        assert "uq_users_email" in {constraint["name"] for constraint in inspector.get_unique_constraints("users")}
+        assert "uq_sessions_token_hash" in {constraint["name"] for constraint in inspector.get_unique_constraints("sessions")}
+        session_user_fk = next(fk for fk in inspector.get_foreign_keys("sessions") if fk["constrained_columns"] == ["user_id"])
+        assert session_user_fk["referred_table"] == "users"
+        assert session_user_fk["referred_columns"] == ["id"]
+        assert session_user_fk["options"]["ondelete"] == "CASCADE"
+        investigation_owner_fk = next(
+            fk for fk in inspector.get_foreign_keys("investigations") if fk["constrained_columns"] == ["owner_id"]
+        )
+        assert investigation_owner_fk["referred_table"] == "users"
+        assert investigation_owner_fk["options"]["ondelete"] == "CASCADE"
         with database.engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261005_0001"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261005_0003"
+        command.downgrade(config, "20261005_0002")
+        assert set(inspect(database.engine).get_table_names()) == {"alembic_version", "users", "sessions"}
+        command.upgrade(config, "head")
+        assert set(inspect(database.engine).get_table_names()) == expected_tables
     finally:
         database.dispose()

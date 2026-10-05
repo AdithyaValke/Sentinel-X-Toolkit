@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
-    """Base metadata for future application models; the initial schema is empty."""
+    """Base metadata for application models."""
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response, g
 from flask_cors import CORS
 import base64
 import urllib.parse
@@ -6,12 +6,24 @@ import hashlib
 import os
 import re
 import ipaddress
+import secrets
+import unicodedata
+from datetime import datetime, timedelta, timezone
+
+from argon2 import PasswordHasher, Type
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from flask_limiter import Limiter
 from flask_limiter.errors import RateLimitExceeded
 
 from database import create_database, database_url_from_environment
 from hash_identifier import analyze_hashes
+from models import (
+    AuthSession, Investigation, InvestigationEvent, InvestigationEvidence,
+    InvestigationFinding, InvestigationIOC, User,
+)
 
 CHAIN_MAX_STEPS = 10
 CHAIN_MAX_OUTPUT_BYTES = 64 * 1024
@@ -205,7 +217,760 @@ else:
     origins = ['http://localhost:3000']
 if not origins or any(not _is_trusted_origin(origin) for origin in origins):
     raise RuntimeError("FRONTEND_ORIGIN must contain explicit HTTP(S) origins without paths or wildcards")
-CORS(app, resources={r"/*": {"origins": origins}})
+# Credentialed cookies are only emitted for the explicit origin list above.
+app.config["AUTH_ORIGINS"] = tuple(origins)
+CORS(app, resources={r"/*": {"origins": origins}}, supports_credentials=True)
+
+app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "sentinelx_session")
+app.config["SESSION_COOKIE_PATH"] = "/api"
+app.config["SESSION_LIFETIME_SECONDS"] = _positive_int_setting_from(os.environ, "SESSION_LIFETIME_SECONDS", str(7 * 24 * 60 * 60))
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
+_password_hasher = PasswordHasher(type=Type.ID, time_cost=3, memory_cost=65536, parallelism=2)
+# Verify missing users against an Argon2 hash too, reducing login timing differences.
+_dummy_password_hash = _password_hasher.hash(secrets.token_urlsafe(32))
+
+
+def _auth_database():
+    database = app.extensions.get("database")
+    if database is None:
+        raise RuntimeError("Authentication database is unavailable")
+    return database
+
+
+def _safe_user(user):
+    return {"id": user.id, "email": user.email, "display_name": user.display_name, "role": user.role}
+
+
+def _auth_error(message, status):
+    return jsonify({"success": False, "error": message}), status
+
+
+def _trusted_auth_origin():
+    return request.headers.get("Origin") in app.config["AUTH_ORIGINS"]
+
+
+def _session_token_hash(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _create_auth_session(db_session, user):
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    record = AuthSession(
+        user_id=user.id,
+        session_token_hash=_session_token_hash(token),
+        expires_at=now + timedelta(seconds=app.config["SESSION_LIFETIME_SECONDS"]),
+        last_seen_at=now,
+    )
+    db_session.add(record)
+    return token
+
+
+def get_current_user():
+    token = request.cookies.get(app.config["SESSION_COOKIE_NAME"])
+    if not token or len(token) > 128:
+        return None
+    database = app.extensions.get("database")
+    if database is None:
+        return None
+    now = datetime.now(timezone.utc)
+    with database.sessions.begin() as db_session:
+        record = db_session.scalar(select(AuthSession).where(
+            AuthSession.session_token_hash == _session_token_hash(token),
+            AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > now,
+        ))
+        if record is None or not record.user.is_active:
+            return None
+        record.last_seen_at = now
+        g.auth_session_id = record.id
+        g.auth_user = record.user
+        return record.user
+
+
+def require_authentication(view):
+    from functools import wraps
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if get_current_user() is None:
+            return _auth_error("Authentication required", 401)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _set_session_cookie(response, token):
+    response.set_cookie(
+        app.config["SESSION_COOKIE_NAME"], token,
+        max_age=app.config["SESSION_LIFETIME_SECONDS"], httponly=True,
+        secure=app.config["SESSION_COOKIE_SECURE"], samesite="None" if app.config["SESSION_COOKIE_SECURE"] else "Lax",
+        path=app.config["SESSION_COOKIE_PATH"],
+    )
+    return response
+
+
+def _auth_rate_limit(limit):
+    return limiter.limit(limit, key_func=verified_client_ip, methods=["POST"])
+
+
+@app.route("/api/auth/register", methods=["POST"])
+@public_api_rate_limit()
+@_auth_rate_limit("3 per minute")
+def auth_register():
+    if not _trusted_auth_origin():
+        return _auth_error("Untrusted request origin", 403)
+    if not request.is_json:
+        return _auth_error("Content-Type must be application/json", 415)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _auth_error("Malformed JSON payload", 400)
+    email, password, display_name = data.get("email"), data.get("password"), data.get("display_name")
+    if not isinstance(email, str) or not isinstance(password, str) or not isinstance(display_name, str):
+        return _auth_error("email, password, and display_name are required", 400)
+    email = email.strip().casefold()
+    display_name = display_name.strip()
+    if len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        return _auth_error("Enter a valid email address", 400)
+    if not 12 <= len(password) <= 256:
+        return _auth_error("Password must be between 12 and 256 characters", 400)
+    if not display_name or len(display_name) > 80 or any(ord(char) < 32 for char in display_name):
+        return _auth_error("Display name must be 1 to 80 characters", 400)
+    database = app.extensions.get("database")
+    if database is None:
+        return _auth_error("Authentication service unavailable", 503)
+    try:
+        with database.sessions.begin() as db_session:
+            if db_session.scalar(select(User.id).where(User.email == email)) is not None:
+                return _auth_error("Email is already registered", 409)
+            user = User(email=email, password_hash=_password_hasher.hash(password), display_name=display_name)
+            db_session.add(user)
+            db_session.flush()
+            token = _create_auth_session(db_session, user)
+    except IntegrityError:
+        return _auth_error("Email is already registered", 409)
+    response = make_response(jsonify({"success": True, "user": _safe_user(user)}), 201)
+    return _set_session_cookie(response, token)
+
+
+@app.route("/api/auth/login", methods=["POST"])
+@public_api_rate_limit()
+@_auth_rate_limit("5 per minute")
+def auth_login():
+    if not _trusted_auth_origin():
+        return _auth_error("Untrusted request origin", 403)
+    if not request.is_json:
+        return _auth_error("Content-Type must be application/json", 415)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get("email"), str) or not isinstance(data.get("password"), str):
+        return _auth_error("email and password are required", 400)
+    database = app.extensions.get("database")
+    if database is None:
+        return _auth_error("Authentication service unavailable", 503)
+    email, password = data["email"].strip().casefold(), data["password"]
+    with database.sessions.begin() as db_session:
+        user = db_session.scalar(select(User).where(User.email == email))
+        valid = False
+        try:
+            valid = _password_hasher.verify(user.password_hash if user is not None else _dummy_password_hash, password)
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
+            valid = False
+        if not valid or not user.is_active:
+            return _auth_error("Invalid email or password", 401)
+        token = _create_auth_session(db_session, user)
+        safe_user = _safe_user(user)
+    response = make_response(jsonify({"success": True, "user": safe_user}))
+    return _set_session_cookie(response, token)
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    user = get_current_user()
+    if user is None:
+        return _auth_error("Authentication required", 401)
+    return jsonify({"success": True, "user": _safe_user(user)})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+@public_api_rate_limit()
+@_auth_rate_limit("10 per minute")
+def auth_logout():
+    if not _trusted_auth_origin():
+        return _auth_error("Untrusted request origin", 403)
+    token = request.cookies.get(app.config["SESSION_COOKIE_NAME"])
+    database = app.extensions.get("database")
+    if token and database is not None:
+        with database.sessions.begin() as db_session:
+            record = db_session.scalar(select(AuthSession).where(AuthSession.session_token_hash == _session_token_hash(token)))
+            if record is not None and record.revoked_at is None:
+                record.revoked_at = datetime.now(timezone.utc)
+    response = make_response(jsonify({"success": True}))
+    response.delete_cookie(app.config["SESSION_COOKIE_NAME"], path=app.config["SESSION_COOKIE_PATH"], httponly=True,
+                           secure=app.config["SESSION_COOKIE_SECURE"],
+                           samesite="None" if app.config["SESSION_COOKIE_SECURE"] else "Lax")
+    return response
+
+
+# Investigation access is opt-in through require_authentication. Existing stateless
+# tool routes remain public. All write routes below also enforce trusted Origin.
+INVESTIGATION_STATUSES = {"open", "investigating", "resolved", "closed"}
+FINDING_SEVERITIES = {"info", "low", "medium", "high", "critical"}
+FINDING_STATUSES = {"open", "confirmed", "dismissed", "resolved"}
+IOC_TYPES = {"ip", "domain", "hash", "email"}
+IOC_SOURCES = {"manual", "extractor", "log_analyzer", "integration"}
+SECRET_MARKER_RE = re.compile(
+    r"(?i)\b(?:password|passwd|api[_-]?key|client[_-]?secret|access[_-]?(?:key|token)|refresh[_-]?token|session[_-]?(?:id|token|cookie)|csrf[_-]?token|private[_-]?key|secret|token|authorization|set-cookie|cookie)\b\s*(?:[:=]\s*)\S+"
+)
+SESSION_VALUE_RE = re.compile(r"(?i)\b[a-z0-9_-]*(?:session|auth)(?:[_-]cookie)?\s*[:=]\s*\S+")
+BEARER_VALUE_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{8,}={0,2}")
+JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
+PRIVATE_KEY_RE = re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----", re.I)
+CREDENTIAL_URL_RE = re.compile(r"\b[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@", re.I)
+CLOUD_CREDENTIAL_RE = re.compile(
+    r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\bgithub_pat_[A-Za-z0-9_]{20,}\b|\bAIza[0-9A-Za-z_-]{35}\b|\bxox[baprs]-[A-Za-z0-9-]{10,}\b|\bsk_(?:live|test)_[A-Za-z0-9]{10,}\b"
+)
+
+
+def _investigation_error(message, status):
+    return jsonify({"success": False, "error": message}), status
+
+
+def _require_trusted_origin(view):
+    from functools import wraps
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not _trusted_auth_origin():
+            return _investigation_error("Untrusted request origin", 403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _investigation_read_rate_limit():
+    return limiter.limit("60 per minute", key_func=verified_client_ip, methods=["GET"])
+
+
+def _investigation_write_rate_limit():
+    return limiter.limit("20 per minute", key_func=verified_client_ip, methods=["POST", "PATCH", "DELETE"])
+
+
+def _contains_sensitive_text(value: str) -> bool:
+    return bool(
+        SECRET_MARKER_RE.search(value)
+        or SESSION_VALUE_RE.search(value)
+        or BEARER_VALUE_RE.search(value)
+        or JWT_VALUE_RE.search(value)
+        or PRIVATE_KEY_RE.search(value)
+        or CREDENTIAL_URL_RE.search(value)
+        or CLOUD_CREDENTIAL_RE.search(value)
+    )
+
+
+def _parse_api_json(allowed_fields):
+    if not request.is_json:
+        return None, _investigation_error("Content-Type must be application/json", 415)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, _investigation_error("Malformed JSON payload", 400)
+    unexpected = set(data) - set(allowed_fields)
+    if unexpected:
+        return None, _investigation_error(f"Unsupported field: {sorted(unexpected)[0]}", 400)
+    return data, None
+
+
+def _bounded_text(value, field, maximum, *, required=False, allow_null=False):
+    if value is None:
+        if allow_null and not required:
+            return None, None
+        return None, f"{field} is required" if required else f"{field} must be a string"
+    if not isinstance(value, str):
+        return None, f"{field} must be a string"
+    value = unicodedata.normalize("NFC", value).strip()
+    if required and not value:
+        return None, f"{field} is required"
+    if len(value) > maximum:
+        return None, f"{field} must be at most {maximum} characters"
+    if _contains_sensitive_text(value):
+        return None, f"{field} appears to contain credentials or authentication material"
+    return value, None
+
+
+def _pagination():
+    try:
+        limit = int(request.args.get("limit", "20"))
+        offset = int(request.args.get("offset", "0"))
+    except (TypeError, ValueError):
+        return None, _investigation_error("limit and offset must be integers", 400)
+    if not 1 <= limit <= 100:
+        return None, _investigation_error("limit must be between 1 and 100", 400)
+    if not 0 <= offset <= 100000:
+        return None, _investigation_error("offset must be between 0 and 100000", 400)
+    return (limit, offset), None
+
+
+def _owned_investigation(db_session, investigation_id, owner_id):
+    return db_session.scalar(select(Investigation).where(
+        Investigation.id == investigation_id,
+        Investigation.owner_id == owner_id,
+    ))
+
+
+def _owned_parent_or_404(db_session, investigation_id, owner_id):
+    if _owned_investigation(db_session, investigation_id, owner_id) is None:
+        return _investigation_error("Investigation not found", 404)
+    return None
+
+
+def _timestamp(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _serialize_investigation(item):
+    return {
+        "id": item.id, "title": item.title, "description": item.description, "status": item.status,
+        "created_at": _timestamp(item.created_at), "updated_at": _timestamp(item.updated_at),
+        "closed_at": _timestamp(item.closed_at),
+    }
+
+
+def _serialize_ioc(item):
+    return {
+        "id": item.id, "investigation_id": item.investigation_id, "ioc_type": item.ioc_type,
+        "value": item.value, "normalized_value": item.normalized_value, "source": item.source,
+        "confidence": item.confidence, "first_seen": _timestamp(item.first_seen),
+        "last_seen": _timestamp(item.last_seen), "created_at": _timestamp(item.created_at),
+    }
+
+
+def _serialize_finding(item):
+    return {
+        "id": item.id, "investigation_id": item.investigation_id, "title": item.title,
+        "description": item.description, "severity": item.severity, "status": item.status,
+        "source": item.source, "created_at": _timestamp(item.created_at), "updated_at": _timestamp(item.updated_at),
+    }
+
+
+def _serialize_evidence(item):
+    return {
+        "id": item.id, "investigation_id": item.investigation_id, "finding_id": item.finding_id,
+        "evidence_type": item.evidence_type, "title": item.title, "content": item.content,
+        "source": item.source, "created_at": _timestamp(item.created_at),
+    }
+
+
+def _serialize_event(item):
+    return {
+        "id": item.id, "investigation_id": item.investigation_id, "event_type": item.event_type,
+        "message": item.message, "created_at": _timestamp(item.created_at),
+    }
+
+
+def _validated_page_or_error():
+    page, error = _pagination()
+    return (None, error) if error else (page, None)
+
+
+@app.route("/api/investigations", methods=["GET"])
+@_investigation_read_rate_limit()
+@require_authentication
+def list_investigations():
+    page, error = _validated_page_or_error()
+    if error:
+        return error
+    limit, offset = page
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions() as db_session:
+        query = select(Investigation).where(Investigation.owner_id == g.auth_user.id).order_by(
+            Investigation.updated_at.desc(), Investigation.id.desc()
+        ).limit(limit).offset(offset)
+        items = [_serialize_investigation(item) for item in db_session.scalars(query)]
+    return jsonify({"items": items, "limit": limit, "offset": offset})
+
+
+@app.route("/api/investigations", methods=["POST"])
+@public_api_rate_limit()
+@_investigation_write_rate_limit()
+@require_authentication
+@_require_trusted_origin
+def create_investigation():
+    data, error = _parse_api_json({"title", "description"})
+    if error:
+        return error
+    if "title" not in data:
+        return _investigation_error("title is required", 400)
+    title, error_message = _bounded_text(data["title"], "title", 200, required=True)
+    if error_message:
+        return _investigation_error(error_message, 400)
+    description = None
+    if "description" in data:
+        description, error_message = _bounded_text(data["description"], "description", 8000, allow_null=True)
+        if error_message:
+            return _investigation_error(error_message, 400)
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions.begin() as db_session:
+        investigation = Investigation(owner_id=g.auth_user.id, title=title, description=description)
+        db_session.add(investigation)
+        db_session.flush()
+        db_session.add(InvestigationEvent(
+            investigation_id=investigation.id, event_type="created", message="Investigation created",
+        ))
+        result = _serialize_investigation(investigation)
+    return jsonify({"item": result}), 201
+
+
+@app.route("/api/investigations/<int:investigation_id>", methods=["GET"])
+@_investigation_read_rate_limit()
+@require_authentication
+def get_investigation(investigation_id):
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions() as db_session:
+        item = _owned_investigation(db_session, investigation_id, g.auth_user.id)
+        if item is None:
+            return _investigation_error("Investigation not found", 404)
+        result = _serialize_investigation(item)
+    return jsonify({"item": result})
+
+
+@app.route("/api/investigations/<int:investigation_id>", methods=["PATCH"])
+@_investigation_read_rate_limit()
+@_investigation_write_rate_limit()
+@require_authentication
+@_require_trusted_origin
+def update_investigation(investigation_id):
+    data, error = _parse_api_json({"title", "description", "status"})
+    if error:
+        return error
+    if not data:
+        return _investigation_error("At least one field must be provided", 400)
+    title = None
+    if "title" in data:
+        title, error_message = _bounded_text(data["title"], "title", 200, required=True)
+        if error_message:
+            return _investigation_error(error_message, 400)
+    description = None
+    if "description" in data and data["description"] is not None:
+        description, error_message = _bounded_text(data["description"], "description", 8000)
+        if error_message:
+            return _investigation_error(error_message, 400)
+    status = data.get("status")
+    if "status" in data and (not isinstance(status, str) or status not in INVESTIGATION_STATUSES):
+        return _investigation_error("Invalid investigation status", 400)
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions.begin() as db_session:
+        item = _owned_investigation(db_session, investigation_id, g.auth_user.id)
+        if item is None:
+            return _investigation_error("Investigation not found", 404)
+        old_status = item.status
+        if "title" in data:
+            item.title = title
+        if "description" in data:
+            item.description = description
+        if "status" in data:
+            item.status = status
+            if status in {"resolved", "closed"}:
+                if old_status not in {"resolved", "closed"} or item.closed_at is None:
+                    item.closed_at = datetime.now(timezone.utc)
+            else:
+                item.closed_at = None
+            if old_status != status:
+                db_session.add(InvestigationEvent(
+                    investigation_id=item.id, event_type="status_changed",
+                    message=f"Status changed from {old_status} to {status}",
+                ))
+        db_session.flush()
+        result = _serialize_investigation(item)
+    return jsonify({"item": result})
+
+
+@app.route("/api/investigations/<int:investigation_id>", methods=["DELETE"])
+@_investigation_read_rate_limit()
+@_investigation_write_rate_limit()
+@require_authentication
+@_require_trusted_origin
+def delete_investigation(investigation_id):
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions.begin() as db_session:
+        item = _owned_investigation(db_session, investigation_id, g.auth_user.id)
+        if item is None:
+            return _investigation_error("Investigation not found", 404)
+        db_session.delete(item)
+    return "", 204
+
+
+def _normalize_ioc(ioc_type, value):
+    if ioc_type == "ip":
+        return str(ipaddress.ip_address(value))
+    if ioc_type == "hash":
+        return value.lower()
+    if ioc_type == "email":
+        return value.casefold()
+    normalized = value.casefold().replace("[.]", ".").rstrip(".")
+    try:
+        labels = normalized.encode("idna").decode("ascii").split(".")
+    except UnicodeError as error:
+        raise ValueError("invalid domain") from error
+    ascii_domain = ".".join(labels)
+    if len(labels) < 2 or len(ascii_domain) > 253 or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels
+    ):
+        raise ValueError("invalid domain")
+    return ascii_domain
+
+
+def _validate_ioc_value(ioc_type, value):
+    if not isinstance(ioc_type, str) or ioc_type not in IOC_TYPES:
+        return None, "ioc_type must be one of: domain, email, hash, ip"
+    if not isinstance(value, str):
+        return None, "value must be a string"
+    value = value.strip()
+    if not value or len(value) > 2048:
+        return None, "value must be between 1 and 2048 characters"
+    if _contains_sensitive_text(value):
+        return None, "value appears to contain credentials or authentication material"
+    try:
+        if ioc_type == "hash":
+            if not re.fullmatch(r"(?:[A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64}|[A-Fa-f0-9]{128})", value):
+                return None, "hash value must be a supported hexadecimal digest"
+        elif ioc_type == "email" and (len(value) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value)):
+            return None, "value is not a valid email address"
+        normalized = _normalize_ioc(ioc_type, value)
+    except ValueError:
+        return None, "value does not match ioc_type"
+    return normalized, None
+
+
+def _list_child_records(investigation_id, model, serializer, order_by):
+    page, error = _pagination()
+    if error:
+        return error
+    limit, offset = page
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions() as db_session:
+        parent = _owned_investigation(db_session, investigation_id, g.auth_user.id)
+        if parent is None:
+            return _investigation_error("Investigation not found", 404)
+        query = select(model).where(model.investigation_id == investigation_id).order_by(*order_by).limit(limit).offset(offset)
+        items = [serializer(row) for row in db_session.scalars(query)]
+    return jsonify({"items": items, "limit": limit, "offset": offset})
+
+
+def _create_child(investigation_id, model, serializer, event_type, event_message, values):
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions.begin() as db_session:
+        parent = _owned_investigation(db_session, investigation_id, g.auth_user.id)
+        if parent is None:
+            return _investigation_error("Investigation not found", 404)
+        record = model(investigation_id=investigation_id, **values)
+        db_session.add(record)
+        db_session.flush()
+        db_session.add(InvestigationEvent(
+            investigation_id=investigation_id, event_type=event_type, message=event_message,
+        ))
+        result = serializer(record)
+    return jsonify({"item": result}), 201
+
+
+@app.route("/api/investigations/<int:investigation_id>/iocs", methods=["GET"])
+@_investigation_read_rate_limit()
+@require_authentication
+def list_investigation_iocs(investigation_id):
+    return _list_child_records(
+        investigation_id, InvestigationIOC, _serialize_ioc,
+        [InvestigationIOC.created_at.desc(), InvestigationIOC.id.desc()],
+    )
+
+
+@app.route("/api/investigations/<int:investigation_id>/iocs", methods=["POST"])
+@public_api_rate_limit()
+@_investigation_write_rate_limit()
+@require_authentication
+@_require_trusted_origin
+def create_investigation_ioc(investigation_id):
+    data, error = _parse_api_json({"ioc_type", "value", "normalized_value", "source", "confidence", "first_seen", "last_seen"})
+    if error:
+        return error
+    ioc_type, value = data.get("ioc_type"), data.get("value")
+    normalized_default, error_message = _validate_ioc_value(ioc_type, value)
+    if error_message:
+        return _investigation_error(error_message, 400)
+    normalized = normalized_default
+    if "normalized_value" in data and data["normalized_value"] is not None:
+        supplied_normalized, error_message = _bounded_text(data["normalized_value"], "normalized_value", 2048, required=True)
+        if error_message:
+            return _investigation_error(error_message, 400)
+        try:
+            supplied_normalized = _normalize_ioc(ioc_type, supplied_normalized)
+        except ValueError:
+            return _investigation_error("normalized_value does not match ioc_type", 400)
+        if supplied_normalized != normalized_default:
+            return _investigation_error("normalized_value must match the normalized value of value", 400)
+    source = data.get("source", "manual")
+    if not isinstance(source, str) or source not in IOC_SOURCES:
+        return _investigation_error("Invalid IOC source", 400)
+    confidence = data.get("confidence")
+    if confidence is not None and (isinstance(confidence, bool) or not isinstance(confidence, int) or not 0 <= confidence <= 100):
+        return _investigation_error("confidence must be an integer between 0 and 100", 400)
+    datetime_values = {}
+    for field in ("first_seen", "last_seen"):
+        raw = data.get(field)
+        if raw is None:
+            datetime_values[field] = None
+        elif not isinstance(raw, str):
+            return _investigation_error(f"{field} must be an ISO-8601 timestamp", 400)
+        else:
+            try:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                return _investigation_error(f"{field} must be an ISO-8601 timestamp", 400)
+            if parsed.tzinfo is None:
+                return _investigation_error(f"{field} must include a timezone", 400)
+            datetime_values[field] = parsed.astimezone(timezone.utc)
+    first_seen, last_seen = datetime_values["first_seen"], datetime_values["last_seen"]
+    if first_seen and last_seen and last_seen < first_seen:
+        return _investigation_error("last_seen cannot precede first_seen", 400)
+    return _create_child(
+        investigation_id, InvestigationIOC, _serialize_ioc, "ioc_added", f"IOC added ({ioc_type})",
+        {"ioc_type": ioc_type, "value": value.strip(), "normalized_value": normalized,
+         "source": source, "confidence": confidence, **datetime_values},
+    )
+
+
+@app.route("/api/investigations/<int:investigation_id>/findings", methods=["GET"])
+@_investigation_read_rate_limit()
+@require_authentication
+def list_investigation_findings(investigation_id):
+    return _list_child_records(
+        investigation_id, InvestigationFinding, _serialize_finding,
+        [InvestigationFinding.updated_at.desc(), InvestigationFinding.id.desc()],
+    )
+
+
+@app.route("/api/investigations/<int:investigation_id>/findings", methods=["POST"])
+@public_api_rate_limit()
+@_investigation_write_rate_limit()
+@require_authentication
+@_require_trusted_origin
+def create_investigation_finding(investigation_id):
+    data, error = _parse_api_json({"title", "description", "severity", "status", "source"})
+    if error:
+        return error
+    if "title" not in data:
+        return _investigation_error("title is required", 400)
+    title, message = _bounded_text(data["title"], "title", 200, required=True)
+    if message:
+        return _investigation_error(message, 400)
+    description = None
+    if data.get("description") is not None:
+        description, message = _bounded_text(data["description"], "description", 8000)
+        if message:
+            return _investigation_error(message, 400)
+    severity, status = data.get("severity", "info"), data.get("status", "open")
+    if not isinstance(severity, str) or severity not in FINDING_SEVERITIES:
+        return _investigation_error("Invalid finding severity", 400)
+    if not isinstance(status, str) or status not in FINDING_STATUSES:
+        return _investigation_error("Invalid finding status", 400)
+    source = data.get("source")
+    if source is not None:
+        source, message = _bounded_text(source, "source", 32, required=True)
+        if message:
+            return _investigation_error(message, 400)
+    return _create_child(
+        investigation_id, InvestigationFinding, _serialize_finding, "finding_created", "Finding created",
+        {"title": title, "description": description, "severity": severity, "status": status, "source": source},
+    )
+
+
+@app.route("/api/investigations/<int:investigation_id>/evidence", methods=["GET"])
+@_investigation_read_rate_limit()
+@require_authentication
+def list_investigation_evidence(investigation_id):
+    return _list_child_records(
+        investigation_id, InvestigationEvidence, _serialize_evidence,
+        [InvestigationEvidence.created_at.desc(), InvestigationEvidence.id.desc()],
+    )
+
+
+@app.route("/api/investigations/<int:investigation_id>/evidence", methods=["POST"])
+@public_api_rate_limit()
+@_investigation_write_rate_limit()
+@require_authentication
+@_require_trusted_origin
+def create_investigation_evidence(investigation_id):
+    data, error = _parse_api_json({"finding_id", "evidence_type", "title", "content", "source"})
+    if error:
+        return error
+    for field in ("evidence_type", "title", "content"):
+        if field not in data:
+            return _investigation_error(f"{field} is required", 400)
+    evidence_type, message = _bounded_text(data["evidence_type"], "evidence_type", 32, required=True)
+    if message or not re.fullmatch(r"[a-z][a-z0-9_]*", evidence_type or ""):
+        return _investigation_error(message or "evidence_type has an invalid format", 400)
+    title, message = _bounded_text(data["title"], "title", 200, required=True)
+    if message:
+        return _investigation_error(message, 400)
+    content, message = _bounded_text(data["content"], "content", 8000, required=True)
+    if message:
+        return _investigation_error(message, 400)
+    source = data.get("source")
+    if source is not None:
+        source, message = _bounded_text(source, "source", 32, required=True)
+        if message:
+            return _investigation_error(message, 400)
+    finding_id = data.get("finding_id")
+    if finding_id is not None and (isinstance(finding_id, bool) or not isinstance(finding_id, int) or finding_id < 1):
+        return _investigation_error("finding_id must be a positive integer or null", 400)
+    database = app.extensions.get("database")
+    if database is None:
+        return _investigation_error("Investigation service unavailable", 503)
+    with database.sessions.begin() as db_session:
+        parent = _owned_investigation(db_session, investigation_id, g.auth_user.id)
+        if parent is None:
+            return _investigation_error("Investigation not found", 404)
+        if finding_id is not None:
+            finding = db_session.scalar(select(InvestigationFinding.id).where(
+                InvestigationFinding.id == finding_id,
+                InvestigationFinding.investigation_id == investigation_id,
+            ))
+            if finding is None:
+                return _investigation_error("finding_id must reference a finding in this investigation", 400)
+        record = InvestigationEvidence(
+            investigation_id=investigation_id, finding_id=finding_id, evidence_type=evidence_type,
+            title=title, content=content, source=source,
+        )
+        db_session.add(record)
+        db_session.flush()
+        db_session.add(InvestigationEvent(
+            investigation_id=investigation_id, event_type="evidence_added", message="Evidence added",
+        ))
+        result = _serialize_evidence(record)
+    return jsonify({"item": result}), 201
+
+
+@app.route("/api/investigations/<int:investigation_id>/timeline", methods=["GET"])
+@_investigation_read_rate_limit()
+@require_authentication
+def list_investigation_timeline(investigation_id):
+    return _list_child_records(
+        investigation_id, InvestigationEvent, _serialize_event,
+        [InvestigationEvent.created_at.desc(), InvestigationEvent.id.desc()],
+    )
 
 
 @app.after_request

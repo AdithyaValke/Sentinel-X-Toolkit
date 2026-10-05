@@ -11,5 +11,7 @@ services:
         sync: false
       - key: RATE_LIMIT_STORAGE_URI
         sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: API_RATE_LIMIT_PER_MINUTE
         value: "60"

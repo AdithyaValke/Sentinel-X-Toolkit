@@ -12,6 +12,7 @@ SentinelX is a general-purpose cybersecurity toolkit for students, professionals
 - [Live demo and services](#live-demo-and-services)
 - [Technology stack](#technology-stack)
 - [Architecture and API](#architecture-and-api)
+- [Database setup](#database-setup)
 - [Project structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Local setup and development](#local-setup-and-development)
@@ -77,7 +78,7 @@ The frontend deployment URLs are provided for this project; their current availa
 
 - **Frontend:** Next.js 16, React 19, TypeScript 5.7, Tailwind CSS 4, PostCSS
 - **UI utilities:** Base UI, class-variance-authority, clsx, tailwind-merge, and lucide-react
-- **Backend:** Python, Flask 3, Flask-CORS, Flask-Limiter with Redis support, and Gunicorn
+- **Backend:** Python, Flask 3, Flask-CORS, Flask-Limiter with Redis support, SQLAlchemy, Alembic, psycopg, and Gunicorn
 - **Tests:** Node.js built-in test runner for frontend utility/API tests; pytest for Flask API tests
 - **Deployment configuration:** render.yaml configures a Python web service on Render. The frontend is a Next.js application configured for deployment with Vercel by setting its project root to the dashboard directory.
 
@@ -95,6 +96,7 @@ flowchart LR
     N -->|POST /api/identify-hash| F
     N -->|POST /api/extract-iocs| F
     F -->|Shared rate-limit state in production| R[(Redis-compatible store)]
+    F -->|PostgreSQL via SQLAlchemy| P[(PostgreSQL)]
     N -. local-only tools .-> L[IoC sanitizer and reference generator]
 ~~~
 
@@ -108,6 +110,9 @@ render.yaml configures the backend root directory, install/start commands, and /
 ├── render.yaml
     ├── security-payload-workbench-backend/
 │   ├── app.py
+│   ├── database.py
+│   ├── alembic.ini
+│   ├── migrations/         # Alembic environment and revision history
 │   ├── hash_identifier.py
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
@@ -148,10 +153,12 @@ python -m pip install -r requirements.txt
 # Optional: these are the local defaults shown in .env.example.
 $env:FRONTEND_ORIGIN = "http://localhost:3000"
 $env:PORT = "8000"
+# Uncomment only after creating a local PostgreSQL database; keep credentials out of source control.
+# $env:DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@localhost:5432/sentinelx"
 python app.py
 ~~~
 
-The API listens on http://localhost:8000 by default. The Flask app does not load .env files itself; configure variables in the shell or your deployment environment. Runtime dependencies include Flask, Flask-CORS, Flask-Limiter with its Redis extra, and Gunicorn. Install `requirements-dev.txt` to add pytest for local testing.
+The API listens on http://localhost:8000 by default. The Flask database layer reads `DATABASE_URL` from the process environment first, then from the backend's ignored `.env` file when the process value is absent. It reads no other `.env` values. The DATABASE_URL value above is a placeholder: use local credentials and never commit them. Local API development can omit DATABASE_URL until database access or migrations are needed. Runtime dependencies include Flask, Flask-CORS, Flask-Limiter with its Redis extra, SQLAlchemy, Alembic, psycopg, python-dotenv, and Gunicorn. Install `requirements-dev.txt` to add pytest for local testing.
 
 ### 2. Start the Next.js frontend
 
@@ -174,12 +181,46 @@ Open [http://localhost:3000](http://localhost:3000). The example .env.local poin
 | FRONTEND_ORIGIN | Flask-CORS allowlist. Accepts comma-separated explicit HTTP(S) origins, without paths or wildcards. | Defaults to http://localhost:3000 locally; required when running on Render. | http://localhost:3000; production: https://sentinel-x-toolkit.vercel.app |
 | API_RATE_LIMIT_PER_MINUTE | Positive integer request limit per client IP, shared by all public POST API endpoints. | Optional; defaults to 60. | 60 |
 | RATE_LIMIT_STORAGE_URI | Flask-Limiter storage backend. | Optional locally (defaults to process memory); required on Render and must use a Redis-compatible redis://, rediss://, or redis+cluster:// URI. | Local example: redis://localhost:6379/0; production: private Redis-compatible URL from Render |
+| DATABASE_URL | Server-only SQLAlchemy database URL. PostgreSQL URLs use the psycopg 3 driver. Never expose this value through Next.js or any NEXT_PUBLIC_* variable. | Optional locally until database access/migrations are needed; required on Render. | Local: local PostgreSQL URL; production: private internal URL from Render PostgreSQL |
 | PORT | Port used by python app.py; Render supplies this to Gunicorn. | Optional locally; defaults to 8000. | 8000 |
 | NODE_ENV | Next.js environment mode; the API client uses production mode to require an explicit API base URL. | Managed by Next.js; do not normally set manually. | Set automatically by dev/build/start commands |
 | RENDER | Enables Render-specific CORS and production rate-limit storage requirements in Flask. | Set by Render; do not set manually for local development. | Set automatically by Render |
 | TRUST_CLOUDFLARE_CLIENT_IP | Opts in to using the single CF-Connecting-IP value instead of the framework connection peer for rate-limit identity. Only set to `true` after verifying that origin ingress is restricted to trusted Cloudflare proxies. | Optional; securely defaults to false. | false unless Cloudflare-only origin access has been independently established |
 
-On Render, the platform sets RENDER; the app uses it to require an explicit CORS origin and Redis-compatible rate-limit storage. Configure Render with `FRONTEND_ORIGIN=https://sentinel-x-toolkit.vercel.app`. Do not set RATE_LIMIT_STORAGE_URI to memory:// in production. Keep production storage URLs private, and do not put credentials in NEXT_PUBLIC_API_URL. The frontend validates that a configured production NEXT_PUBLIC_API_URL uses HTTPS; this variable is public browser configuration, not a place for credentials.
+On Render, the platform sets RENDER; the app uses it to require an explicit CORS origin, Redis-compatible rate-limit storage, and DATABASE_URL. Configure Render with `FRONTEND_ORIGIN=https://sentinel-x-toolkit.vercel.app`. Keep production database and rate-limit URLs private, and never expose DATABASE_URL through Next.js or a NEXT_PUBLIC_* variable. Do not set RATE_LIMIT_STORAGE_URI to memory:// in production. The frontend validates that a configured production NEXT_PUBLIC_API_URL uses HTTPS; this variable is public browser configuration, not a place for credentials.
+
+## Database setup
+
+SentinelX uses PostgreSQL as the intended production database on Render. `DATABASE_URL` is read only by the Flask backend. Alembic manages schema changes; the initial migration records an empty application schema and creates no application tables.
+
+The Flask app creates one SQLAlchemy engine per worker at startup without opening a connection. Its session factory reuses that engine; PostgreSQL pools are capped at two connections plus one overflow connection per worker, with stale connections checked before use.
+
+Set `DATABASE_URL` to a local PostgreSQL connection URL in the backend process or put it in the backend's ignored `.env` file. Process environment values take precedence. From the backend directory, apply migrations with:
+
+~~~powershell
+python -m alembic upgrade head
+~~~
+
+On Render, provision PostgreSQL and configure the backend service's `DATABASE_URL` with its private internal connection URL. Run the Alembic command from the backend service root when applying migrations; migrations are not run automatically at app startup. Never commit database credentials or put DATABASE_URL in frontend variables.
+
+### Authentication
+
+The backend provides Phase 1 account authentication; the dashboard does not yet include login or registration UI. Passwords are stored as Argon2id hashes using the pinned `argon2-cffi` implementation. Login sessions use random opaque tokens in an HttpOnly cookie; PostgreSQL stores only SHA-256 hashes of those high-entropy tokens. Sessions expire after seven days by default and logout revokes the server-side session.
+
+Endpoints: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me`. Registration, login, and logout require an `Origin` matching `FRONTEND_ORIGIN`. Configure `SESSION_COOKIE_NAME` and `SESSION_LIFETIME_SECONDS` only in the backend environment if defaults need adjustment. The cookie uses `Path=/api` so future API routes receive it. Production uses `Secure; SameSite=None` for the separately hosted Vercel/Render origins; local development uses `Secure=False; SameSite=Lax`. Credentialed CORS is limited to the explicit frontend origin allowlist, and unsafe cookie-authenticated requests must enforce the same origin check as the auth endpoints.
+
+Authentication is optional: existing stateless Analysis Lab tools remain public and usable without an account. Investigation APIs require a valid session and operate only on investigations owned by that user. The backend supports investigation list/create/read/update/delete, IOC, finding, and evidence list/create, and timeline reads. Writes require a trusted Origin and create timeline events for investigation creation, status changes, IOC additions, finding creation, and evidence additions. Text inputs are bounded and checked for common credential/token formats; do not submit secrets as evidence. Apply schema changes with the Alembic `upgrade head` command documented above.
+
+~~~text
+User
+└── Investigation
+    ├── IOCs
+    ├── Findings
+    ├── Evidence
+    └── Timeline Events
+~~~
+
+Run local tests from the backend directory with `pytest`; use the local Docker PostgreSQL `DATABASE_URL` when checking migrations against PostgreSQL. Authentication settings and database credentials are backend-only; never commit secrets or expose them through `NEXT_PUBLIC_*` variables.
 
 ## API reference
 
@@ -299,7 +340,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ~~~
 
-The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, and Render proxy/storage configuration. Frontend tests cover utilities, JWT parsing/findings/timestamps/HMAC verification, Analysis Lab tab parsing, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
+The backend test suite uses pytest and Flask's test client. It covers processing operations, chains and chain limits, hash identification, validation/error responses, CORS, rate limiting, Render proxy/storage configuration, and SQLAlchemy/Alembic setup using SQLite. Frontend tests cover utilities, JWT parsing/findings/timestamps/HMAC verification, Analysis Lab tab parsing, chain step management and response validation, route mapping, search, API contracts, and latest-request behavior.
 
 ## Deployment
 
@@ -309,7 +350,8 @@ render.yaml sets the backend root to security-payload-workbench-backend, install
 
 1. FRONTEND_ORIGIN as the exact deployed frontend origin: https://sentinel-x-toolkit.vercel.app.
 2. RATE_LIMIT_STORAGE_URI as the private internal connection URL for a Redis-compatible Render Key Value service. Keep it in the same region as the backend where possible.
-3. API_RATE_LIMIT_PER_MINUTE as a positive integer if the default of 60 is not appropriate.
+3. DATABASE_URL as the private internal connection URL from the Render PostgreSQL service.
+4. API_RATE_LIMIT_PER_MINUTE as a positive integer if the default of 60 is not appropriate.
 
 The currently documented Flask health endpoint is https://payload-workbench.onrender.com/health and should return {"status":"ok"} when that Render service is available.
 

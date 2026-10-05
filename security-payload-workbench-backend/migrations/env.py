@@ -2,6 +2,7 @@ from alembic import context
 from sqlalchemy.engine import Connection
 
 from database import Base, create_database, database_url_from_environment
+import models  # noqa: F401 -- register model metadata for Alembic autogeneration
 
 
 config = context.config
