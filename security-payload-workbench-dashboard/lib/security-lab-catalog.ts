@@ -13,7 +13,14 @@ export const JWT_DECODER_CATALOG_ENTRY = {
   tab: 'jwt-decoder',
 } as const
 
-export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder'] as const
+export const IOC_EXTRACTOR_CATALOG_ENTRY = {
+  title: 'IoC Extractor',
+  description: 'Extract and organize potential indicators of compromise from logs, alerts, and text.',
+  href: '/security-lab?tab=ioc-extractor',
+  tab: 'ioc-extractor',
+} as const
+
+export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor'] as const
 export type SecurityLabTabId = typeof SECURITY_LAB_TAB_IDS[number]
 
 export function parseSecurityLabTab(value: unknown): SecurityLabTabId {

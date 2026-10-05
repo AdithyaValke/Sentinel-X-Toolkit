@@ -15,6 +15,7 @@ import {
   Info,
   KeyRound,
   Lock,
+  ScanSearch,
   Monitor,
   RefreshCw,
   Shield,
@@ -23,7 +24,8 @@ import {
   Zap,
 } from 'lucide-react'
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
-import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
+import { IOC_EXTRACTOR_CATALOG_ENTRY, JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
+import { IocExtractor } from '@/components/ioc-extractor'
 import { SecurityLabJwtPanel } from '@/components/security-lab-jwt-panel'
 import { cancelActivityDebounce, recordActivity, recordActivityDebounced } from '@/lib/activity'
 
@@ -526,6 +528,7 @@ export function SecurityLab() {
               { id: 'defanger', label: 'IoC Defanger & Sanitizer' },
               { id: 'payload-generator', label: PAYLOAD_GENERATOR_CATALOG_ENTRY.title },
               { id: 'jwt-decoder', label: JWT_DECODER_CATALOG_ENTRY.title },
+              { id: 'ioc-extractor', label: IOC_EXTRACTOR_CATALOG_ENTRY.title },
             ] as const
           ).map(({ id, label }) => (
             <button
@@ -616,6 +619,19 @@ export function SecurityLab() {
                     className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
                   >
                     Open Payload Generator <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </article>
+
+                {/* Card: IoC Extractor */}
+                <article className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-cyan-400/40 hover:bg-[#101724]">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20"><ScanSearch className="size-5" /></span>
+                    <span className="rounded bg-cyan-400/10 px-2 py-0.5 text-right font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">Local Analyzer</span>
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-white">{IOC_EXTRACTOR_CATALOG_ENTRY.title}</h3>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{IOC_EXTRACTOR_CATALOG_ENTRY.description} Results are deduplicated locally with occurrence counts.</p>
+                  <Link href={IOC_EXTRACTOR_CATALOG_ENTRY.href} className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
+                    Open IoC Extractor <ArrowUpRight className="size-3.5" />
                   </Link>
                 </article>
 
@@ -1115,6 +1131,8 @@ export function SecurityLab() {
         )}
 
         {activeTab === 'jwt-decoder' && <SecurityLabJwtPanel />}
+
+        {activeTab === 'ioc-extractor' && <IocExtractor />}
 
         {/* ── Page footer ───────────────────────────────────────────────────── */}
         <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.08] pt-6 text-xs text-slate-500 sm:flex-row">
