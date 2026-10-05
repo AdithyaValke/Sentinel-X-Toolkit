@@ -68,6 +68,7 @@ The global search supports title/description/keyword matching and keyboard navig
 ## Live demo and services
 
 - Frontend: [https://sentinel-x-toolkit.vercel.app](https://sentinel-x-toolkit.vercel.app)
+- Source: [https://github.com/ShadowM300/Sentinel-X-Toolkit.git](https://github.com/ShadowM300/Sentinel-X-Toolkit.git)
 - Flask health endpoint: [https://payload-workbench.onrender.com/health](https://payload-workbench.onrender.com/health)
 
 The frontend deployment URLs are provided for this project; their current availability is not guaranteed by this repository. Payload encoding/decoding, hashing, hash identification, and the shared API health indicator require the Flask backend to be reachable. The IoC sanitizer, Payload Generator, and JWT Decoder operate locally in the browser.
@@ -169,15 +170,16 @@ Open [http://localhost:3000](http://localhost:3000). The example .env.local poin
 
 | Variable | Purpose and use | Required? | Safe local example / production setting |
 |---|---|---|---|
-| NEXT_PUBLIC_API_URL | Public Flask API base URL used for /health and /api/... requests. It is exposed to the browser bundle and must not contain secrets. Production requires HTTPS; local development may use HTTP. | Optional in development (falls back to http://localhost:8000); required in production when API features are used. | http://localhost:8000; production: HTTPS API service URL |
+| NEXT_PUBLIC_API_URL | Public Flask API base URL used for /health and /api/... requests. It is exposed to the browser bundle and must not contain secrets. Production requires HTTPS; development permits HTTP only for localhost. | Optional in development (falls back to http://localhost:8000); required in production when API features are used. | http://localhost:8000; production: HTTPS API service URL |
 | FRONTEND_ORIGIN | Flask-CORS allowlist. Accepts comma-separated explicit HTTP(S) origins, without paths or wildcards. | Defaults to http://localhost:3000 locally; required when running on Render. | http://localhost:3000; production: https://sentinel-x-toolkit.vercel.app |
 | API_RATE_LIMIT_PER_MINUTE | Positive integer request limit per client IP, shared by all public POST API endpoints. | Optional; defaults to 60. | 60 |
 | RATE_LIMIT_STORAGE_URI | Flask-Limiter storage backend. | Optional locally (defaults to process memory); required on Render and must use a Redis-compatible redis://, rediss://, or redis+cluster:// URI. | Local example: redis://localhost:6379/0; production: private Redis-compatible URL from Render |
 | PORT | Port used by python app.py; Render supplies this to Gunicorn. | Optional locally; defaults to 8000. | 8000 |
 | NODE_ENV | Next.js environment mode; the API client uses production mode to require an explicit API base URL. | Managed by Next.js; do not normally set manually. | Set automatically by dev/build/start commands |
-| RENDER | Enables Render-specific CORS, proxy-IP, and production rate-limit storage requirements in Flask. | Set by Render; do not set manually for local development. | Set automatically by Render |
+| RENDER | Enables Render-specific CORS and production rate-limit storage requirements in Flask. | Set by Render; do not set manually for local development. | Set automatically by Render |
+| TRUST_CLOUDFLARE_CLIENT_IP | Opts in to using the single CF-Connecting-IP value instead of the framework connection peer for rate-limit identity. Only set to `true` after verifying that origin ingress is restricted to trusted Cloudflare proxies. | Optional; securely defaults to false. | false unless Cloudflare-only origin access has been independently established |
 
-On Render, the platform sets RENDER; the app uses it to require an explicit CORS origin and Redis-compatible rate-limit storage. Do not set RATE_LIMIT_STORAGE_URI to memory:// in production. Keep production storage URLs private, and do not put credentials in NEXT_PUBLIC_API_URL. The frontend validates that a configured production NEXT_PUBLIC_API_URL uses HTTPS; this variable is public browser configuration, not a place for credentials.
+On Render, the platform sets RENDER; the app uses it to require an explicit CORS origin and Redis-compatible rate-limit storage. Configure Render with `FRONTEND_ORIGIN=https://sentinel-x-toolkit.vercel.app`. Do not set RATE_LIMIT_STORAGE_URI to memory:// in production. Keep production storage URLs private, and do not put credentials in NEXT_PUBLIC_API_URL. The frontend validates that a configured production NEXT_PUBLIC_API_URL uses HTTPS; this variable is public browser configuration, not a place for credentials.
 
 ## API reference
 
@@ -271,15 +273,16 @@ Error responses use the JSON shape { "success": false, "result": "", "error": "<
 - The frontend Content Security Policy is configured in next.config.mjs. It retains unsafe-inline for the inline Next.js/theme bootstrap compatibility required by the current app; production does not allow unsafe-eval and the source lists do not use wildcards. Moving to nonces would require request-aware rendering and was not introduced as part of this targeted hardening.
 - Vercel documents a default Strict-Transport-Security response header with max-age=63072000 seconds (two years). The app does not duplicate it or apply includeSubDomains/preload; see [Vercel response headers](https://vercel.com/docs/headers/response-headers).
 - /api/process, /api/chain, /api/identify-hash, and /api/extract-iocs share a Flask-Limiter moving-window limit, which enforces the limit continuously across window boundaries. One chain call counts as one request. Render requires a shared Redis-compatible store; a storage outage fails closed with HTTP 503. Requests above the limit receive HTTP 429.
-- In Render mode, the limiter validates the single CF-Connecting-IP address as the client IP and does not trust X-Forwarded-For. If that trusted header is missing or invalid, the request fails with HTTP 503. Outside Render, local/test use the socket peer address and do not trust forwarded headers.
+- Rate limiting uses the framework connection peer by default and ignores all client-supplied forwarding headers. `TRUST_CLOUDFLARE_CLIENT_IP=true` explicitly opts into the single `CF-Connecting-IP` header and fails with HTTP 503 when it is missing or invalid. The opt-in is safe only when operators separately restrict origin ingress to Cloudflare; this repository does not verify that restriction. The app never trusts `X-Forwarded-For`.
 - The request body is capped at 10 KiB; API inputs and required fields are validated, and unexpected server errors return a generic response.
+- The local Security Headers Analyzer caps pasted input at 64 KiB. Hash identification is capped at 4 KiB and 50 non-empty lines; chain processing is limited to 10 steps and 64 KiB output per step.
 - The app does not execute Analysis Lab output or initiate network connections for generated references. Manually running a generated reachability check is a separate action and can contact the entered host.
 - Hash identification is heuristic and may return ambiguous candidates. MD5 is not appropriate for modern password storage; use a purpose-built password hashing scheme such as Argon2id or bcrypt for password storage.
 - These controls describe the current implementation and do not guarantee that a deployment is secure against every threat.
 
 ### Render client IP assumption
 
-The backend assumes all inbound Render traffic arrives through Cloudflare, which supplies `CF-Connecting-IP`. Rate-limited API routes fail closed with HTTP 503 if that header is missing or invalid. The API never trusts `X-Forwarded-For`.
+Render's presence does not prove that a request passed through Cloudflare. The secure default uses `request.remote_addr`, so when the app is behind a shared load balancer the limiter may group clients under that peer. Enable `TRUST_CLOUDFLARE_CLIENT_IP=true` only after independently enforcing Cloudflare-only access to the origin. In that mode, malformed or missing values fail with HTTP 503. The API never trusts `X-Forwarded-For`.
 
 ## Testing and build
 
@@ -322,7 +325,7 @@ When changing frontend domains, update Render's FRONTEND_ORIGIN to the exact ori
 - **Frontend API or CORS errors:** Check NEXT_PUBLIC_API_URL for the service base URL (no endpoint suffix), then make FRONTEND_ORIGIN exactly match the browser's scheme, host, and port. Restart/redeploy after changes.
 - **Production service fails to start:** On Render, verify FRONTEND_ORIGIN, a valid positive API_RATE_LIMIT_PER_MINUTE, and a private Redis-compatible RATE_LIMIT_STORAGE_URI. A missing or non-Redis storage URL prevents startup.
 - **Requests return 429:** The per-IP moving-window request limit is shared by all public POST API endpoints. Wait until earlier requests age out of the window or set an appropriate positive limit.
-- **Requests return 503:** Check that Render supplies a valid single CF-Connecting-IP value and that the Redis-compatible rate-limit store is available. Storage failures intentionally fail closed.
+- **Requests return 503:** If `TRUST_CLOUDFLARE_CLIENT_IP=true`, check that the request has a valid single `CF-Connecting-IP` value and that Cloudflare-only origin ingress is enforced. Also check that the Redis-compatible rate-limit store is available. The default socket-peer mode does not require client-IP headers. Storage failures intentionally fail closed.
 - **Dependency install or frontend build errors:** Use Node.js compatible with the Next.js requirement, Corepack with pnpm 12.3.4, and run the frozen-lockfile install from the dashboard directory. Install backend packages from requirements.txt.
 - **Local Flask connection fails:** Start the backend on port 8000 and verify NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local.
 

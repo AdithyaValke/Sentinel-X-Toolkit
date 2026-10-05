@@ -25,6 +25,8 @@ export interface SecurityHeadersAnalyzerService {
   analyze(input: string): SecurityHeadersAnalysis
 }
 
+export const MAX_SECURITY_HEADERS_INPUT_LENGTH = 64 * 1024
+
 const checks = [
   ['Content-Security-Policy', 'medium', 'Controls which sources browsers may load.', 'A missing or permissive policy can increase XSS impact depending on application behavior.', "default-src 'self'; object-src 'none'; base-uri 'self'"],
   ['Strict-Transport-Security', 'medium', 'Instructs browsers to use HTTPS for future requests.', 'HSTS applies only after a browser receives it over HTTPS; this text review cannot verify TLS or domain coverage.', 'max-age=31536000; includeSubDomains'],
@@ -125,6 +127,9 @@ function parseHeaders(input: string) {
 
 export const securityHeadersAnalyzer: SecurityHeadersAnalyzerService = {
   analyze(input) {
+    if (input.length > MAX_SECURITY_HEADERS_INPUT_LENGTH) {
+      throw new RangeError('Response header input exceeds the 64 KiB limit.')
+    }
     const { values, malformed } = parseHeaders(input)
     const findings: SecurityHeaderFinding[] = checks.map(([header, missingSeverity, _description, _risk, example]) => {
       const observed = values.get(header.toLowerCase())?.join('\n')
@@ -148,8 +153,21 @@ export const securityHeadersAnalyzer: SecurityHeadersAnalyzerService = {
 
 export const SECURITY_HEADERS_SAMPLE = `HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self'; object-src 'none'\nX-Content-Type-Options: nosniff\nReferrer-Policy: strict-origin-when-cross-origin\nSet-Cookie: session=demo; Secure; HttpOnly; SameSite=Lax`
 
-export function exportAnalysisJson(analysis: SecurityHeadersAnalysis) { return JSON.stringify(analysis, null, 2) }
+function maskCookieValue(value: string) {
+  return value.replace(/^(\s*[^=;\s]+\s*=)[^;]*(.*)$/, '$1[REDACTED]$2')
+}
+
+function exportableAnalysis(analysis: SecurityHeadersAnalysis): SecurityHeadersAnalysis {
+  return {
+    ...analysis,
+    findings: analysis.findings.map((finding) => finding.id.startsWith('cookie_') && finding.observedValue
+      ? { ...finding, observedValue: maskCookieValue(finding.observedValue) }
+      : finding),
+  }
+}
+
+export function exportAnalysisJson(analysis: SecurityHeadersAnalysis) { return JSON.stringify(exportableAnalysis(analysis), null, 2) }
 export function exportAnalysisCsv(analysis: SecurityHeadersAnalysis) {
   const esc = (value = '') => `"${value.replaceAll('"', '""').replaceAll('\n', ' ')}"`
-  return ['Header,Status,Severity,Observed,Explanation,Remediation', ...analysis.findings.map((f) => [f.header, f.status, f.severity, f.observedValue ?? '', f.explanation, f.remediation].map(esc).join(','))].join('\n')
+  return ['Header,Status,Severity,Observed,Explanation,Remediation', ...exportableAnalysis(analysis).findings.map((f) => [f.header, f.status, f.severity, f.observedValue ?? '', f.explanation, f.remediation].map(esc).join(','))].join('\n')
 }

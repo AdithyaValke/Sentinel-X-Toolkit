@@ -10,7 +10,7 @@ def client():
     app.testing = True
     app.config["PROPAGATE_EXCEPTIONS"] = False
     app.config["API_RATE_LIMIT_PER_MINUTE"] = 60
-    app.config["TRUST_RENDER_CLOUDFLARE_IP"] = False
+    app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = False
     limiter.reset()
     with app.test_client() as test_client:
         yield test_client
@@ -179,7 +179,7 @@ def test_api_security_headers(client):
 
 
 def test_render_client_ip_trust_fails_closed_without_header_and_accepts_valid_ip(client):
-    app.config["TRUST_RENDER_CLOUDFLARE_IP"] = True
+    app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = True
     missing = post_process(client, "base64_encode", "hello")
     assert missing.status_code == 503
     assert missing.get_json() == {"success": False, "result": "", "error": "Unable to verify client IP"}
@@ -197,7 +197,7 @@ def test_explicit_cors_origins_are_accepted(origin):
     assert _is_trusted_origin(origin)
 
 
-@pytest.mark.parametrize("origin", ["*", "https://*.example.org", "https://example.org/path", "https://user:pass@example.org", "https://example.org:bad", "file:///tmp"])
+@pytest.mark.parametrize("origin", ["", "   ", "*", "https://*.example.org", "https://example.org/path", "https://user:pass@example.org", "https://example.org:bad", "file:///tmp"])
 def test_wildcard_and_non_origin_cors_values_are_rejected(origin):
     assert not _is_trusted_origin(origin)
 
@@ -611,7 +611,7 @@ def test_moving_window_enforces_limit_across_fixed_window_boundary(client, monke
 
 
 def test_render_ip_uses_only_cloudflare_header_and_rejects_bad_values(client):
-    app.config["TRUST_RENDER_CLOUDFLARE_IP"] = True
+    app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = True
     app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
     first = client.post(
         "/api/process",
@@ -640,6 +640,30 @@ def test_render_ip_uses_only_cloudflare_header_and_rejects_bad_values(client):
         )
         assert response.status_code == 503
         assert response.get_json()["error"] == "Unable to verify client IP"
+
+
+@pytest.mark.parametrize("address", ["198.51.100.8", "2001:db8::8"])
+def test_trusted_cloudflare_client_ip_supports_ipv4_and_ipv6(address, client):
+    app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = True
+    with client.application.test_request_context(headers={"CF-Connecting-IP": address}):
+        from app import verified_client_ip
+        assert verified_client_ip() == address
+
+
+def test_untrusted_forwarded_headers_cannot_rotate_rate_limit_identity(client):
+    app.config["API_RATE_LIMIT_PER_MINUTE"] = 1
+    client.environ_base["REMOTE_ADDR"] = "192.0.2.44"
+    first = client.post("/api/process", json={"input_text": "one", "operation": "base64_encode"}, headers={"CF-Connecting-IP": "198.51.100.1", "X-Forwarded-For": "198.51.100.1"})
+    rotated = client.post("/api/process", json={"input_text": "two", "operation": "base64_encode"}, headers={"CF-Connecting-IP": "198.51.100.2", "X-Forwarded-For": "198.51.100.2"})
+    assert first.status_code == 200
+    assert rotated.status_code == 429
+
+
+def test_socket_peer_is_the_default_rate_limit_identity(client):
+    from app import verified_client_ip
+    client.environ_base["REMOTE_ADDR"] = "2001:0db8:0:0:0:0:0:5"
+    with client.application.test_request_context(environ_base=client.environ_base, headers={"CF-Connecting-IP": "203.0.113.99"}):
+        assert verified_client_ip() == "2001:db8::5"
 
 
 def test_render_rate_limit_requires_redis_and_valid_limit_configuration():

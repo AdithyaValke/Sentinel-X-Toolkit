@@ -117,6 +117,7 @@ def _positive_int_setting_from(environment, name: str, default: str) -> int:
 
 _is_render, _rate_limit_storage, _rate_limit = _rate_limit_configuration(os.environ)
 app.config["API_RATE_LIMIT_PER_MINUTE"] = _rate_limit
+app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = os.environ.get("TRUST_CLOUDFLARE_CLIENT_IP", "").lower() == "true"
 
 
 class ClientIpUnavailable(Exception):
@@ -124,9 +125,9 @@ class ClientIpUnavailable(Exception):
 
 
 def verified_client_ip() -> str:
-    # Render traffic is assumed to arrive through Cloudflare; only CF-Connecting-IP is trusted there.
-    # A missing or invalid value fails closed on rate-limited routes. X-Forwarded-For is never trusted.
-    if app.config.get("TRUST_RENDER_CLOUDFLARE_IP", _is_render):
+    # Trust CF-Connecting-IP only when an operator has verified Cloudflare-only origin ingress.
+    # This opt-in cannot itself prevent direct-origin spoofing. Never trust X-Forwarded-For.
+    if app.config.get("TRUST_CLOUDFLARE_CLIENT_IP", False):
         candidate = request.headers.get("CF-Connecting-IP", "")
         if not candidate or "," in candidate:
             raise ClientIpUnavailable
@@ -134,8 +135,14 @@ def verified_client_ip() -> str:
             return str(ipaddress.ip_address(candidate.strip()))
         except ValueError as error:
             raise ClientIpUnavailable from error
-    # Local/test requests use the socket peer. Forwarded headers are never trusted here.
-    return request.remote_addr or "unknown"
+    # The socket peer is framework-derived; forwarded headers are never trusted by default.
+    peer = request.remote_addr
+    if peer:
+        try:
+            return str(ipaddress.ip_address(peer))
+        except ValueError:
+            return peer
+    return "unknown"
 
 
 def _rate_limit_response(_request_limit):

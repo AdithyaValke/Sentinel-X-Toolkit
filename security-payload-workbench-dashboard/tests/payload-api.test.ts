@@ -169,8 +169,14 @@ test('API base URL requires HTTPS in production and preserves local HTTP develop
   installBrowserTimerShim()
   try {
     Reflect.set(process.env, 'NODE_ENV', 'production')
+    Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', '')
+    await assert.rejects(callBackend('base64_encode', 'hello'), /not configured/i)
     Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'http://api.example.test')
     await assert.rejects(callBackend('base64_encode', 'hello'), /must use HTTPS in production/i)
+    for (const invalid of ['https://', 'file:///tmp/api', 'not a URL']) {
+      Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', invalid)
+      await assert.rejects(callBackend('base64_encode', 'hello'), /absolute HTTP\(S\) URL|must use HTTP or HTTPS/i)
+    }
 
     let requestedUrl = ''
     globalThis.fetch = async (input) => {
@@ -182,6 +188,8 @@ test('API base URL requires HTTPS in production and preserves local HTTP develop
     assert.equal(requestedUrl, 'https://api.example.test/api/process')
 
     Reflect.set(process.env, 'NODE_ENV', 'development')
+    Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'http://api.example.test')
+    await assert.rejects(callBackend('base64_encode', 'hello'), /HTTP only for localhost/i)
     Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'http://localhost:8000')
     assert.equal((await callBackend('base64_encode', 'hello')).success, true)
     assert.equal(requestedUrl, 'http://localhost:8000/api/process')

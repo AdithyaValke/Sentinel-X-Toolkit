@@ -72,6 +72,9 @@ function getApiBaseUrl(): string {
   if (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'https:') {
     throw new Error('NEXT_PUBLIC_API_URL must use HTTPS in production.')
   }
+  if (process.env.NODE_ENV !== 'production' && parsedUrl.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname)) {
+    throw new Error('NEXT_PUBLIC_API_URL may use HTTP only for localhost development.')
+  }
   return baseUrl.replace(/\/+$/, '')
 }
 

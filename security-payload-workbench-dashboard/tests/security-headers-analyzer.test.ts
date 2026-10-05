@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { securityHeadersAnalyzer } from '../lib/security-headers-analyzer.ts'
+import { exportAnalysisCsv, exportAnalysisJson, MAX_SECURITY_HEADERS_INPUT_LENGTH, securityHeadersAnalyzer } from '../lib/security-headers-analyzer.ts'
 
 function finding(input: string, header: string) {
   const result = securityHeadersAnalyzer.analyze(input)
@@ -102,6 +102,22 @@ test('cookie attributes are assessed individually without requiring SameSite=Str
   assert.match(partial.risk, /Secure and SameSite/)
   assert.doesNotMatch(partial.remediation, /SameSite=Strict/)
   assert.equal(securityHeadersAnalyzer.analyze('Set-Cookie: session=abc; HttpOnly').cookies, 1)
+})
+
+test('cookie exports mask values while retaining names and attributes', () => {
+  const analysis = securityHeadersAnalyzer.analyze('Set-Cookie: session_id=super-secret; Path=/; Domain=example.test; Expires=Wed, 21 Oct 2030 07:28:00 GMT; Secure; HttpOnly; SameSite=Strict')
+  const json = exportAnalysisJson(analysis)
+  const csv = exportAnalysisCsv(analysis)
+  assert.match(json, /session_id=\[REDACTED\]; Path=\/; Domain=example\.test; Expires=/)
+  assert.match(csv, /session_id=\[REDACTED\]; Path=\/; Domain=example\.test; Expires=/)
+  assert.doesNotMatch(json, /super-secret/)
+  assert.doesNotMatch(csv, /super-secret/)
+  assert.match(analysis.findings.find((item) => item.header === 'Set-Cookie #1')?.observedValue ?? '', /super-secret/)
+})
+
+test('Security Headers Analyzer bounds input before parsing', () => {
+  assert.equal(securityHeadersAnalyzer.analyze('x'.repeat(MAX_SECURITY_HEADERS_INPUT_LENGTH)).rawInputLength, MAX_SECURITY_HEADERS_INPUT_LENGTH)
+  assert.throws(() => securityHeadersAnalyzer.analyze('x'.repeat(MAX_SECURITY_HEADERS_INPUT_LENGTH + 1)), /64 KiB limit/)
 })
 
 test('full sample preserves pass, issue, not-assessed, and summary counts', () => {

@@ -25,7 +25,8 @@ export function SecurityHeadersAnalyzer() {
 
   function analyze() {
     if (!input.trim()) { setError('Paste a response header block before analyzing.'); setAnalysis(null); return }
-    setError(''); setAnalysis(securityHeadersAnalyzer.analyze(input)); setExpanded(null)
+    try { setError(''); setAnalysis(securityHeadersAnalyzer.analyze(input)); setExpanded(null) }
+    catch { setError('Response header input must be no more than 64 KiB.'); setAnalysis(null) }
   }
   function clear() { setInput(''); setAnalysis(null); setError(''); setQuery(''); setExpanded(null) }
   async function copy(text: string, key: string) { try { await navigator.clipboard.writeText(text); setCopied(key); window.setTimeout(() => setCopied(null), 1500) } catch { setError('Clipboard access failed. Select and copy the text manually.') } }
