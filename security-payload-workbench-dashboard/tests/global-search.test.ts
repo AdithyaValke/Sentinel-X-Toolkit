@@ -5,7 +5,7 @@ import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_LA
 
 test('indexes all main destinations and offers concise empty-query suggestions', () => {
   assert.deepEqual(GLOBAL_SEARCH_INDEX.map(({ href }) => href), [
-    '/dashboard', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools', '/hash-tools', '/identify-hash', '/security-lab',
+    '/dashboard', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools', '/hash-tools', '/identify-hash', '/security-lab', '/security-lab?tab=security-headers',
   ])
   assert.deepEqual(searchGlobal('').map(({ href }) => href), [
     '/dashboard', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools',

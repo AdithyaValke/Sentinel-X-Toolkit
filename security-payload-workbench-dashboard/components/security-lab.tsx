@@ -24,8 +24,9 @@ import {
   Zap,
 } from 'lucide-react'
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
-import { IOC_EXTRACTOR_CATALOG_ENTRY, JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
+import { IOC_EXTRACTOR_CATALOG_ENTRY, JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
 import { IocExtractor } from '@/components/ioc-extractor'
+import { SecurityHeadersAnalyzer } from '@/components/security-headers-analyzer'
 import { SecurityLabJwtPanel } from '@/components/security-lab-jwt-panel'
 import { cancelActivityDebounce, recordActivity, recordActivityDebounced } from '@/lib/activity'
 
@@ -529,6 +530,7 @@ export function SecurityLab() {
               { id: 'payload-generator', label: PAYLOAD_GENERATOR_CATALOG_ENTRY.title },
               { id: 'jwt-decoder', label: JWT_DECODER_CATALOG_ENTRY.title },
               { id: 'ioc-extractor', label: IOC_EXTRACTOR_CATALOG_ENTRY.title },
+              { id: 'security-headers', label: SECURITY_HEADERS_CATALOG_ENTRY.title },
             ] as const
           ).map(({ id, label }) => (
             <button
@@ -1133,6 +1135,8 @@ export function SecurityLab() {
         {activeTab === 'jwt-decoder' && <SecurityLabJwtPanel />}
 
         {activeTab === 'ioc-extractor' && <IocExtractor />}
+
+        {activeTab === 'security-headers' && <SecurityHeadersAnalyzer />}
 
         {/* ── Page footer ───────────────────────────────────────────────────── */}
         <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/[0.08] pt-6 text-xs text-slate-500 sm:flex-row">

@@ -20,7 +20,14 @@ export const IOC_EXTRACTOR_CATALOG_ENTRY = {
   tab: 'ioc-extractor',
 } as const
 
-export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor'] as const
+export const SECURITY_HEADERS_CATALOG_ENTRY = {
+  title: 'Security Headers Analyzer',
+  description: 'Inspect pasted HTTP response headers locally and review potential security configuration gaps.',
+  href: '/security-lab?tab=security-headers',
+  tab: 'security-headers',
+} as const
+
+export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor', 'security-headers'] as const
 export type SecurityLabTabId = typeof SECURITY_LAB_TAB_IDS[number]
 
 export function parseSecurityLabTab(value: unknown): SecurityLabTabId {

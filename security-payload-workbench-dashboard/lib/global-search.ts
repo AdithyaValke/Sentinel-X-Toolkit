@@ -1,4 +1,4 @@
-import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY } from './security-lab-catalog.ts'
+import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY } from './security-lab-catalog.ts'
 
 export type SearchEntry = {
   title: string
@@ -59,6 +59,13 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     description: 'Explore defensive security references and utilities.',
     href: '/security-lab',
     keywords: ['security tools', 'security lab', 'ioc sanitization', 'defang', 'refang', 'connectivity', 'tcp', 'http', 'listener', 'relay', 'reference', 'learning'],
+    icon: 'security',
+  },
+  {
+    title: SECURITY_HEADERS_CATALOG_ENTRY.title,
+    description: SECURITY_HEADERS_CATALOG_ENTRY.description,
+    href: SECURITY_HEADERS_CATALOG_ENTRY.href,
+    keywords: ['security headers', 'headers analyzer', 'csp', 'hsts', 'content security policy', 'cookies', 'http response'],
     icon: 'security',
   },
 ]

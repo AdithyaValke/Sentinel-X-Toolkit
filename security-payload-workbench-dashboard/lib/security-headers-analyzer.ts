@@ -1,99 +1,93 @@
 export type HeaderFindingStatus = 'present' | 'missing' | 'misconfigured' | 'not-assessed'
 export type HeaderFindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info'
 
-export interface ParsedHeaders { values: Map<string, string[]>; malformedLines: string[] }
 export interface SecurityHeaderFinding {
   id: string
   header: string
   status: HeaderFindingStatus
   severity: HeaderFindingSeverity
-  title: string
-  explanation: string
-  remediation: string
   observedValue?: string
+  explanation: string
+  risk: string
+  remediation: string
   example?: string
 }
+
 export interface SecurityHeadersAnalysis {
+  recognizedHeaders: number
+  detectedHeaders: number
   findings: SecurityHeaderFinding[]
-  parsedHeaderCount: number
-  detectedHeaderCount: number
-  cookieCount: number
-  malformedLines: string[]
+  cookies: number
+  rawInputLength: number
+}
+
+export interface SecurityHeadersAnalyzerService {
+  analyze(input: string): SecurityHeadersAnalysis
 }
 
 const checks = [
-  ['content-security-policy', 'Content-Security-Policy', 'A policy can reduce the impact of content injection when it is specific and enforced.', 'Review sources, remove unsafe allowances where possible, and deploy a tested policy.', 'medium'],
-  ['strict-transport-security', 'Strict-Transport-Security', 'HSTS tells browsers to use HTTPS for a configured period.', 'Use HSTS only after HTTPS is reliable across the domain and include an appropriate max-age.', 'medium'],
-  ['x-content-type-options', 'X-Content-Type-Options', 'nosniff helps prevent MIME-type confusion in browsers.', 'Set X-Content-Type-Options: nosniff.', 'low'],
-  ['x-frame-options', 'X-Frame-Options', 'This legacy control can limit framing and clickjacking exposure.', 'Set DENY or SAMEORIGIN when framing is not required; use CSP frame-ancestors for modern policy.', 'medium'],
-  ['referrer-policy', 'Referrer-Policy', 'Controls how much URL context is sent as a referrer.', 'Choose an explicit policy such as strict-origin-when-cross-origin based on application needs.', 'low'],
-  ['permissions-policy', 'Permissions-Policy', 'Limits browser features available to documents and embedded content.', 'Declare a policy for sensitive features that the application does not need.', 'low'],
-  ['cross-origin-opener-policy', 'Cross-Origin-Opener-Policy', 'Controls browsing-context isolation across origins.', 'Consider same-origin where isolation is required and compatible with the application.', 'info'],
-  ['cross-origin-resource-policy', 'Cross-Origin-Resource-Policy', 'Controls which origins may load resources.', 'Consider same-origin or same-site for resources that should not be broadly embedded.', 'info'],
-  ['cross-origin-embedder-policy', 'Cross-Origin-Embedder-Policy', 'Controls whether cross-origin resources must opt into embedding.', 'Consider require-corp only when cross-origin isolation is a deliberate, tested requirement.', 'info'],
+  ['Content-Security-Policy', 'medium', 'Controls which sources browsers may load.', 'A missing or permissive policy can increase XSS impact depending on application behavior.', 'Define a restrictive policy from observed application dependencies. Avoid unsafe-inline and unsafe-eval where possible.', "default-src 'self'; object-src 'none'; base-uri 'self'"] ,
+  ['Strict-Transport-Security', 'medium', 'Instructs browsers to use HTTPS for future requests.', 'Missing HSTS is a transport-hardening gap on HTTPS deployments; this input cannot verify TLS or domain coverage.', 'Enable only after HTTPS is working consistently, then choose max-age and includeSubDomains deliberately.', 'max-age=31536000; includeSubDomains'] ,
+  ['X-Content-Type-Options', 'low', 'Prevents MIME-type sniffing.', 'Without nosniff, browsers may interpret some responses using a content type different from the server declaration.', 'Set the value to nosniff on responses serving user-controlled or executable content.', 'nosniff'] ,
+  ['X-Frame-Options', 'medium', 'Controls legacy framing behavior.', 'Missing framing protection may permit clickjacking where the application has sensitive actions.', 'Use DENY or SAMEORIGIN when framing is not required; CSP frame-ancestors is the modern companion.', 'SAMEORIGIN'] ,
+  ['Referrer-Policy', 'low', 'Controls referrer information sent with requests.', 'A missing policy leaves behavior to browser defaults and can expose more URL context than intended.', 'Choose an explicit policy such as strict-origin-when-cross-origin or no-referrer.', 'strict-origin-when-cross-origin'] ,
+  ['Permissions-Policy', 'low', 'Restricts browser powerful features.', 'Missing policy is not automatically a vulnerability, but unused capabilities may remain available to embedded content.', 'Disable features the application does not use and scope required features to trusted origins.', 'camera=(), microphone=(), geolocation=()'] ,
+  ['Cross-Origin-Opener-Policy', 'info', 'Controls browsing-context group isolation.', 'Not required for every application; isolation depends on cross-origin window and deployment needs.', 'Consider same-origin when cross-origin isolation or opener isolation is part of the threat model.', 'same-origin'] ,
+  ['Cross-Origin-Resource-Policy', 'info', 'Controls which origins may load resources.', 'Applicability depends on whether resources are intended for cross-origin consumption.', 'Choose same-origin, same-site, or cross-origin per resource distribution requirements.', 'same-origin'] ,
+  ['Cross-Origin-Embedder-Policy', 'info', 'Controls whether cross-origin resources can be embedded.', 'Not assessed as a missing protection because enabling it can break legitimate integrations.', 'Consider require-corp only when the application needs cross-origin isolation and all dependencies support it.', 'require-corp'] ,
 ] as const
 
-export function parseResponseHeaders(input: string): ParsedHeaders {
+function parseHeaders(input: string) {
   const values = new Map<string, string[]>()
-  const malformedLines: string[] = []
-  for (const raw of input.split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!line || /^HTTP\/\d(?:\.\d)?\s+\d{3}/i.test(line)) continue
-    const separator = line.indexOf(':')
-    if (separator <= 0) { malformedLines.push(line); continue }
-    const name = line.slice(0, separator).trim().toLowerCase()
-    const value = line.slice(separator + 1).trim()
-    if (!name || !value) { malformedLines.push(line); continue }
+  const malformed: string[] = []
+  for (const line of input.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || /^HTTP\/\d(?:\.\d)?\s+\d+/.test(trimmed) || /^[-=]+$/.test(trimmed)) continue
+    const separator = trimmed.indexOf(':')
+    if (separator <= 0) { malformed.push(trimmed); continue }
+    const name = trimmed.slice(0, separator).trim().toLowerCase()
+    const value = trimmed.slice(separator + 1).trim()
+    if (!name || !value) { malformed.push(trimmed); continue }
     values.set(name, [...(values.get(name) ?? []), value])
   }
-  return { values, malformedLines }
+  return { values, malformed }
 }
 
-function assessHeader(id: string, name: string, value: string | undefined, severity: HeaderFindingSeverity): SecurityHeaderFinding {
-  if (!value) return { id, header: name, status: 'missing', severity, title: `${name} was not observed`, explanation: 'This check could not find the header in the supplied response. Missing does not by itself prove a vulnerability; relevance depends on the application and deployment.', remediation: `Review whether ${name} is appropriate for this application and add an explicit policy when it is needed.` }
-  let status: HeaderFindingStatus = 'present'
-  let explanation = `${name} was observed in the supplied headers.`
-  let remediation = 'Review the value against the application architecture and test browser behavior before deploying changes.'
-  if (id === 'content-security-policy' && /(^|\s)(unsafe-inline|unsafe-eval|\*)/i.test(value)) { status = 'misconfigured'; severity = 'high'; explanation = 'The policy contains broad or unsafe source allowances that can reduce its protective value.'; remediation = 'Replace broad sources with explicit origins and nonces or hashes where appropriate.' }
-  if (id === 'strict-transport-security' && !/max-age=\d+/i.test(value)) { status = 'misconfigured'; explanation = 'The header does not contain a recognizable max-age directive.'; remediation = 'Use a tested max-age value and only enable HSTS when HTTPS coverage is understood.' }
-  if (id === 'x-content-type-options' && !/^nosniff$/i.test(value.trim())) { status = 'misconfigured'; explanation = 'The observed value is not the expected nosniff directive.'; remediation = 'Set the value to nosniff.' }
-  return { id, header: name, status, severity, title: status === 'present' ? `${name} recognized` : `${name} may need review`, explanation, remediation, observedValue: value, example: id === 'x-content-type-options' ? 'X-Content-Type-Options: nosniff' : undefined }
+export const securityHeadersAnalyzer: SecurityHeadersAnalyzerService = {
+  analyze(input) {
+    const { values, malformed } = parseHeaders(input)
+    const findings: SecurityHeaderFinding[] = checks.map(([header, defaultSeverity, explanation, risk, remediation, example]) => {
+      const observed = values.get(header.toLowerCase())?.join('\n')
+      let status: HeaderFindingStatus = observed ? 'present' : 'missing'
+      let severity = defaultSeverity as HeaderFindingSeverity
+      if (observed) {
+        const normalized = observed.toLowerCase()
+        if (header === 'Content-Security-Policy' && (normalized.includes("unsafe-inline") || normalized.includes("unsafe-eval") || normalized.includes('*'))) { status = 'misconfigured'; severity = 'high' }
+        if (header === 'Strict-Transport-Security' && (!/max-age=\d+/.test(normalized) || /max-age=0/.test(normalized))) { status = 'misconfigured'; severity = 'medium' }
+        if (header === 'X-Content-Type-Options' && normalized !== 'nosniff') { status = 'misconfigured'; severity = 'medium' }
+        if (header === 'X-Frame-Options' && !/^(deny|sameorigin)$/i.test(normalized)) { status = 'misconfigured'; severity = 'medium' }
+      }
+      if (status === 'missing' && severity === 'info') status = 'not-assessed'
+      return { id: header.toLowerCase().replaceAll('-', '_'), header, status, severity, observedValue: observed, explanation, risk, remediation, example }
+    })
+    const cookies = values.get('set-cookie') ?? []
+    cookies.forEach((cookie, index) => {
+      const lower = cookie.toLowerCase()
+      const missing: string[] = []
+      if (!lower.includes('; secure')) missing.push('Secure')
+      if (!lower.includes('; httponly')) missing.push('HttpOnly')
+      if (!lower.includes('samesite=')) missing.push('SameSite')
+      findings.push({ id: `cookie_${index}`, header: `Set-Cookie #${index + 1}`, status: missing.length ? 'misconfigured' : 'present', severity: missing.includes('Secure') ? 'medium' : 'low', observedValue: cookie, explanation: 'Cookie attributes reduce exposure during transport, scripting, and cross-site requests.', risk: missing.length ? `This cookie is missing: ${missing.join(', ')}. Requirements depend on whether it is a session, cross-site, or non-sensitive cookie.` : 'The common hardening attributes are present; cookie scope and application context still matter.', remediation: 'Review each cookie independently. Add Secure for HTTPS, HttpOnly for server-managed secrets, and an intentional SameSite value.', example: 'session=...; Secure; HttpOnly; SameSite=Lax' })
+    })
+    if (malformed.length) findings.push({ id: 'input_format', header: 'Input format', status: 'not-assessed', severity: 'info', explanation: 'Some lines did not contain a recognizable header name and value.', risk: `${malformed.length} line${malformed.length === 1 ? '' : 's'} were skipped.`, remediation: 'Use one header per line in the form Name: value. HTTP status lines and blank lines are supported.' })
+    return { recognizedHeaders: checks.length, detectedHeaders: [...values.keys()].filter((key) => checks.some(([h]) => h.toLowerCase() === key) || key === 'set-cookie').length, findings, cookies: cookies.length, rawInputLength: input.length }
+  },
 }
 
-function cookieFindings(values: string[]): SecurityHeaderFinding[] {
-  return values.map((cookie, index) => {
-    const parts = cookie.split(';').map((part) => part.trim())
-    const name = parts[0]?.split('=')[0] || `cookie-${index + 1}`
-    const lower = parts.slice(1).map((part) => part.toLowerCase())
-    const missing: string[] = []
-    if (!lower.includes('secure')) missing.push('Secure')
-    if (!lower.includes('httponly')) missing.push('HttpOnly')
-    if (!lower.some((part) => part.startsWith('samesite='))) missing.push('SameSite')
-    return { id: `cookie-${index}`, header: `Set-Cookie: ${name}`, status: missing.length ? 'misconfigured' : 'present', severity: missing.includes('Secure') ? 'high' : missing.includes('HttpOnly') ? 'medium' : 'low', title: missing.length ? `${name} is missing ${missing.join(', ')}` : `${name} attributes observed`, explanation: missing.length ? 'Cookie attributes are context-dependent, but the supplied cookie does not declare all common browser protections.' : 'Secure, HttpOnly, and SameSite attributes were observed for this cookie.', remediation: 'Set attributes according to the cookie purpose, transport, cross-site, and client-side access requirements.', observedValue: cookie, example: `${name}=<value>; Secure; HttpOnly; SameSite=Lax` } satisfies SecurityHeaderFinding
-  })
+export const SECURITY_HEADERS_SAMPLE = `HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self'; object-src 'none'\nX-Content-Type-Options: nosniff\nReferrer-Policy: strict-origin-when-cross-origin\nSet-Cookie: session=demo; Secure; HttpOnly; SameSite=Lax`
+
+export function exportAnalysisJson(analysis: SecurityHeadersAnalysis) { return JSON.stringify(analysis, null, 2) }
+export function exportAnalysisCsv(analysis: SecurityHeadersAnalysis) {
+  const esc = (value = '') => `"${value.replaceAll('"', '""').replaceAll('\n', ' ')}"`
+  return ['Header,Status,Severity,Observed,Explanation,Remediation', ...analysis.findings.map((f) => [f.header, f.status, f.severity, f.observedValue ?? '', f.explanation, f.remediation].map(esc).join(','))].join('\n')
 }
-
-export function analyzeSecurityHeaders(input: string): SecurityHeadersAnalysis {
-  const parsed = parseResponseHeaders(input)
-  const findings = checks.map(([id, name, , , severity]) => assessHeader(id, name, parsed.values.get(id)?.[0], severity))
-  findings.push(...cookieFindings(parsed.values.get('set-cookie') ?? []))
-  return { findings, parsedHeaderCount: [...parsed.values.values()].reduce((total, values) => total + values.length, 0), detectedHeaderCount: parsed.values.size, cookieCount: parsed.values.get('set-cookie')?.length ?? 0, malformedLines: parsed.malformedLines }
-}
-
-export function findingsToCsv(findings: SecurityHeaderFinding[]) {
-  const escape = (value: string) => `"${value.replaceAll('"', '""')}"`
-  return ['Header,Status,Severity,Explanation,Remediation,Observed value', ...findings.map((finding) => [finding.header, finding.status, finding.severity, finding.explanation, finding.remediation, finding.observedValue ?? ''].map(escape).join(','))].join('\n')
-}
-
-export function findingsToJson(analysis: SecurityHeadersAnalysis) { return JSON.stringify(analysis, null, 2) }
-
-export const SECURITY_HEADERS_SAMPLE = `HTTP/2 200 OK\nContent-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'\nStrict-Transport-Security: max-age=31536000\nX-Content-Type-Options: nosniff\nReferrer-Policy: strict-origin-when-cross-origin\nSet-Cookie: session=redacted; Secure; HttpOnly; SameSite=Lax`
-
-export const STATUS_LABELS: Record<HeaderFindingStatus, string> = { present: 'Present', missing: 'Missing', misconfigured: 'Review', 'not-assessed': 'Not assessed' }
-export const SEVERITY_LABELS: Record<HeaderFindingSeverity, string> = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info' }
-export const HEADER_CHECK_COUNT = checks.length
-export const SEVERITIES: HeaderFindingSeverity[] = ['critical', 'high', 'medium', 'low', 'info']
-export const STATUSES: HeaderFindingStatus[] = ['present', 'missing', 'misconfigured', 'not-assessed']
-
-export interface SecurityHeadersAnalyzerService { analyze(input: string): SecurityHeadersAnalysis }
-export const localSecurityHeadersAnalyzer: SecurityHeadersAnalyzerService = { analyze: analyzeSecurityHeaders }
