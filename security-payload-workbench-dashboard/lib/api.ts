@@ -78,7 +78,55 @@ function getApiBaseUrl(): string {
   return baseUrl.replace(/\/+$/, '')
 }
 
-export async function checkBackendHealth(signal?: AbortSignal): Promise<boolean> {
+export interface AuthApiUser {
+  id?: string | number
+  display_name?: string | null
+  name?: string | null
+  email: string
+}
+
+function getErrorMessage(data: unknown, fallback: string) {
+  if (!data || typeof data !== 'object') return fallback
+  const value = data as Record<string, unknown>
+  const message = value.error ?? value.message ?? value.detail
+  return typeof message === 'string' && message.trim() ? message : fallback
+}
+
+async function authRequest(path: string, options: RequestInit = {}) {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  const data: unknown = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(getErrorMessage(data, 'Authentication request failed.'))
+  return data
+}
+
+export async function getCurrentUser(): Promise<AuthApiUser | null> {
+  const response = await fetch(`${getApiBaseUrl()}/api/auth/me`, { credentials: 'include' })
+  if (response.status === 401 || response.status === 403) return null
+  const data: unknown = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(getErrorMessage(data, 'Could not check your session.'))
+  if (!data || typeof data !== 'object') return null
+  const value = data as Record<string, unknown>
+  const user = (value.user && typeof value.user === 'object' ? value.user : value) as Record<string, unknown>
+  return typeof user.email === 'string' ? user as unknown as AuthApiUser : null
+}
+
+export async function registerAccount(payload: { display_name: string; email: string; password: string }) {
+  return authRequest('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function login(payload: { email: string; password: string }) {
+  return authRequest('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function logout() {
+  await authRequest('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) })
+}
+
+export async function checkBackendHealth(signal?: AbortSignal) {
   const controller = new AbortController()
   const abort = () => controller.abort()
   signal?.addEventListener('abort', abort, { once: true })

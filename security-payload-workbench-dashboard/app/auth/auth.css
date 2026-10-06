@@ -1,0 +1,43 @@
+@reference "../globals.css";
+
+.auth-page { @apply relative flex min-h-screen items-center justify-center overflow-hidden bg-[#080b12] px-4 py-10 text-slate-100; }
+.auth-glow { @apply pointer-events-none absolute rounded-full blur-3xl; }
+.auth-glow-one { @apply -right-24 -top-24 size-96 bg-cyan-400/[0.08]; }
+.auth-glow-two { @apply -bottom-40 -left-24 size-80 bg-blue-500/[0.06]; }
+.auth-card { @apply relative w-full max-w-md rounded-3xl border border-white/[0.09] bg-[#0d1420]/95 p-6 shadow-2xl shadow-black/40 backdrop-blur sm:p-9; }
+.auth-brand { @apply mb-10 flex items-center gap-3; }
+.auth-brand > span { @apply flex flex-col; }
+.auth-brand strong { @apply font-mono text-base font-bold tracking-tight text-slate-100; }
+.auth-brand strong span { @apply text-cyan-300; }
+.auth-brand small { @apply mt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-cyan-300; }
+.auth-intro { @apply mb-7; }
+.auth-kicker { @apply mb-3 flex items-center gap-2 font-mono text-[10px] font-semibold tracking-[0.2em] text-cyan-300; }
+.auth-kicker svg { @apply size-4; }
+.auth-intro h1 { @apply text-2xl font-semibold tracking-tight text-white; }
+.auth-intro p { @apply mt-2 text-sm text-slate-400; }
+.auth-tabs { @apply mb-6 grid grid-cols-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-1; }
+.auth-tab { @apply rounded-lg px-3 py-2.5 text-xs font-medium text-slate-500 transition hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400; }
+.auth-tab-active { @apply bg-cyan-400/[0.12] text-cyan-200 shadow-sm; }
+.auth-form { @apply flex flex-col gap-4; }
+.auth-form label { @apply flex flex-col gap-2 text-xs font-medium text-slate-300; }
+.auth-form input { @apply h-11 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/10; }
+.auth-password { @apply relative; }
+.auth-password input { @apply w-full pr-11; }
+.auth-password button { @apply absolute right-1 top-1 flex size-9 items-center justify-center rounded-lg text-slate-500 hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400; }
+.auth-password svg { @apply size-4; }
+.auth-error { @apply rounded-lg border border-rose-400/20 bg-rose-400/[0.07] px-3 py-2.5 text-xs leading-5 text-rose-200; }
+.auth-submit { @apply mt-2 flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300; }
+.auth-submit svg { @apply size-4; }
+.auth-footnote { @apply mt-7 border-t border-white/[0.07] pt-5 text-center font-mono text-[9px] uppercase tracking-wider text-slate-600; }
+.profile-signin { @apply rounded-lg border border-cyan-400/20 px-3 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 lg:order-2; }
+.profile-logout { @apply ml-1 rounded-md px-2 py-1 text-[10px] text-slate-500 transition hover:bg-white/[0.06] hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400; }
+@media (max-width: 639px) { .profile-logout { @apply hidden; } }
+html.light .auth-page { background: #f8fafc; color: #0f172a; }
+html.light .auth-card { @apply border-slate-200 bg-white shadow-slate-900/10; }
+html.light .auth-brand strong, html.light .auth-intro h1 { color: #0f172a; }
+html.light .auth-intro p, html.light .auth-form label { color: #475569; }
+html.light .auth-tabs { @apply border-slate-200 bg-slate-50; }
+html.light .auth-tab { color: #64748b; }
+html.light .auth-tab-active { @apply bg-cyan-100 text-cyan-800; }
+html.light .auth-form input { @apply border-slate-200 bg-white text-slate-900; }
+html.light .auth-footnote { @apply border-slate-200 text-slate-500; }

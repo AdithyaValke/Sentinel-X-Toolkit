@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Fingerprint, FlaskConical, Hash, LayoutDashboard, Menu, Moon, Search, Sun, TerminalSquare, X } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { searchGlobal, type SearchEntry } from '@/lib/global-search'
+import { useAuth, userDisplayName, userInitials } from '@/lib/auth'
 
 const pages: Record<string, { breadcrumb: string; title: string }> = {
   '/dashboard': { breadcrumb: 'Workspace / Overview', title: 'Dashboard' },
@@ -28,6 +30,7 @@ export function AppHeader({ onOpenNavigation, navigationOpen }: { onOpenNavigati
   const router = useRouter()
   const page = pages[pathname] ?? pages['/dashboard']
   const { isDark, toggleTheme } = useTheme()
+  const { user, signOut } = useAuth()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -174,10 +177,11 @@ export function AppHeader({ onOpenNavigation, navigationOpen }: { onOpenNavigati
           )}
         </div>
         <span className="app-header-divider" aria-hidden="true" />
-        <div className="profile-display" role="group" aria-label="Profile display: Adithya Valke, Cyber professional">
-          <span className="profile-avatar" aria-hidden="true">AV</span>
-          <span className="profile-copy"><strong>Adithya Valke</strong><small>Cyber professional</small></span>
-        </div>
+        {user ? <div className="profile-display" role="group" aria-label={`Profile display: ${userDisplayName(user)}`}>
+          <span className="profile-avatar" aria-hidden="true">{userInitials(user)}</span>
+          <span className="profile-copy"><strong>{userDisplayName(user)}</strong><small>{user.email}</small></span>
+          <button type="button" className="profile-logout" onClick={() => void signOut()} aria-label="Sign out">Sign out</button>
+        </div> : <Link href="/auth" className="profile-signin">Sign in</Link>}
         <button
           type="button"
           className="app-theme-toggle"
