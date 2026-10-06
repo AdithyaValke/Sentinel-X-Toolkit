@@ -5,15 +5,12 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Fingerprint,
   FlaskConical,
   GitBranch,
-  Hash,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
-  ShieldCheck,
-  TerminalSquare,
+  Wrench,
   X,
 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
@@ -24,10 +21,8 @@ import { AuthProvider } from '@/lib/auth'
 
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-  { label: 'Payload Tools', icon: TerminalSquare, href: '/payload-tools' },
+  { label: 'Common Tools', icon: Wrench, href: '/common-tools' },
   { label: 'Chain Builder', icon: GitBranch, href: '/chain-builder' },
-  { label: 'Hash Tools', icon: Hash, href: '/hash-tools' },
-  { label: 'Identify Hash', icon: Fingerprint, href: '/identify-hash' },
   { label: 'Analysis Lab', icon: FlaskConical, href: '/security-lab' },
 ]
 

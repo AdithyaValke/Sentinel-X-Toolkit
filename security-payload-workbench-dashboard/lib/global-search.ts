@@ -5,7 +5,7 @@ export type SearchEntry = {
   description: string
   href: string
   keywords: string[]
-  icon: 'dashboard' | 'payload' | 'hash' | 'identify' | 'security'
+  icon: 'dashboard' | 'payload' | 'hash' | 'identify' | 'security' | 'common'
 }
 
 export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
@@ -15,6 +15,13 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     href: '/dashboard',
     keywords: ['home', 'overview', 'main dashboard', 'workspace'],
     icon: 'dashboard',
+  },
+  {
+    title: 'Common Tools',
+    description: 'Open everyday encoding, hashing, and identification utilities.',
+    href: '/common-tools',
+    keywords: ['common utilities', 'everyday tools', 'converters', 'encoding', 'hashing', 'identification'],
+    icon: 'common',
   },
   {
     title: PAYLOAD_GENERATOR_CATALOG_ENTRY.title,
