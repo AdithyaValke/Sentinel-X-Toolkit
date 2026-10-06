@@ -128,10 +128,40 @@ export async function getInvestigation(id: string): Promise<Investigation> {
   return (data as { item: Investigation }).item
 }
 
+export interface InvestigationIOC {
+  id: number
+  investigation_id: number
+  ioc_type: 'ip' | 'domain' | 'hash' | 'email'
+  value: string
+  normalized_value: string
+  source: 'manual' | 'extractor' | 'log_analyzer' | 'integration'
+  confidence: number | null
+  first_seen: string | null
+  last_seen: string | null
+  created_at: string
+}
+
 export async function createInvestigation(payload: { title: string; description?: string }): Promise<Investigation> {
   const data = await investigationRequest('/api/investigations', { method: 'POST', body: JSON.stringify(payload) })
   if (!data || typeof data !== 'object' || !('item' in data)) throw new ApiError('Invalid investigation response.', 502)
   return (data as { item: Investigation }).item
+}
+
+export async function listInvestigationIOCs(id: string): Promise<InvestigationIOC[]> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/iocs`)
+  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items)) {
+    throw new ApiError('Invalid IOC response.', 502)
+  }
+  return (data as { items: InvestigationIOC[] }).items
+}
+
+export async function createInvestigationIOC(id: string, payload: { ioc_type: InvestigationIOC['ioc_type']; value: string }): Promise<InvestigationIOC> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/iocs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!data || typeof data !== 'object' || !('item' in data)) throw new ApiError('Invalid IOC response.', 502)
+  return (data as { item: InvestigationIOC }).item
 }
 
 function getErrorMessage(data: unknown, fallback: string) {
