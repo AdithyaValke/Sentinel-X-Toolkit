@@ -115,11 +115,39 @@ async function investigationRequest(path: string, options: RequestInit = {}) {
   return data
 }
 
+function isInvestigation(value: unknown): value is Investigation {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return Number.isInteger(item.id) && typeof item.title === 'string' &&
+    (item.description === null || typeof item.description === 'string') &&
+    ['open', 'investigating', 'resolved', 'closed'].includes(String(item.status)) &&
+    typeof item.created_at === 'string' && typeof item.updated_at === 'string' &&
+    (item.closed_at === null || typeof item.closed_at === 'string')
+}
+
+export interface InvestigationListPage {
+  items: Investigation[]
+  limit: number
+  offset: number
+}
+
+export async function listInvestigationsPage(page: { limit?: number; offset?: number } = {}): Promise<InvestigationListPage> {
+  const limit = page.limit ?? 20
+  const offset = page.offset ?? 0
+  const query = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const data = await investigationRequest(`/api/investigations?${query}`)
+  if (!data || typeof data !== 'object') throw new ApiError('Invalid investigations response.', 502)
+  const response = data as Record<string, unknown>
+  if (!Array.isArray(response.items) || !response.items.every(isInvestigation) ||
+    !Number.isInteger(response.limit) || (response.limit as number) < 1 || (response.limit as number) > 100 ||
+    !Number.isInteger(response.offset) || (response.offset as number) < 0) {
+    throw new ApiError('Invalid investigations response.', 502)
+  }
+  return { items: response.items, limit: response.limit as number, offset: response.offset as number }
+}
+
 export async function listInvestigations(): Promise<Investigation[]> {
-  const data = await investigationRequest('/api/investigations')
-  return data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)
-    ? (data as { items: Investigation[] }).items
-    : []
+  return (await listInvestigationsPage()).items
 }
 
 export async function getInvestigation(id: string): Promise<Investigation> {
@@ -141,6 +169,44 @@ export interface InvestigationIOC {
   created_at: string
 }
 
+function isInvestigationIOC(value: unknown): value is InvestigationIOC {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return Number.isInteger(item.id) && Number.isInteger(item.investigation_id) &&
+    ['ip', 'domain', 'hash', 'email'].includes(String(item.ioc_type)) &&
+    typeof item.value === 'string' && typeof item.normalized_value === 'string' &&
+    ['manual', 'extractor', 'log_analyzer', 'integration'].includes(String(item.source)) &&
+    (item.confidence === null || (Number.isInteger(item.confidence) && (item.confidence as number) >= 0 && (item.confidence as number) <= 100)) &&
+    (item.first_seen === null || typeof item.first_seen === 'string') &&
+    (item.last_seen === null || typeof item.last_seen === 'string') && typeof item.created_at === 'string'
+}
+
+export const FINDING_SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'] as const
+export type FindingSeverity = typeof FINDING_SEVERITIES[number]
+
+export interface InvestigationFinding {
+  id: number
+  investigation_id: number
+  title: string
+  description: string | null
+  severity: FindingSeverity
+  status: 'open' | 'confirmed' | 'dismissed' | 'resolved'
+  source: string | null
+  created_at: string
+  updated_at: string
+}
+
+function isInvestigationFinding(value: unknown): value is InvestigationFinding {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return Number.isInteger(item.id) && Number.isInteger(item.investigation_id) &&
+    typeof item.title === 'string' && (item.description === null || typeof item.description === 'string') &&
+    FINDING_SEVERITIES.includes(item.severity as FindingSeverity) &&
+    ['open', 'confirmed', 'dismissed', 'resolved'].includes(String(item.status)) &&
+    (item.source === null || typeof item.source === 'string') &&
+    typeof item.created_at === 'string' && typeof item.updated_at === 'string'
+}
+
 export async function createInvestigation(payload: { title: string; description?: string }): Promise<Investigation> {
   const data = await investigationRequest('/api/investigations', { method: 'POST', body: JSON.stringify(payload) })
   if (!data || typeof data !== 'object' || !('item' in data)) throw new ApiError('Invalid investigation response.', 502)
@@ -149,19 +215,131 @@ export async function createInvestigation(payload: { title: string; description?
 
 export async function listInvestigationIOCs(id: string): Promise<InvestigationIOC[]> {
   const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/iocs`)
-  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items)) {
+  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items) ||
+    !(data as { items: unknown[] }).items.every(isInvestigationIOC)) {
     throw new ApiError('Invalid IOC response.', 502)
   }
   return (data as { items: InvestigationIOC[] }).items
 }
 
-export async function createInvestigationIOC(id: string, payload: { ioc_type: InvestigationIOC['ioc_type']; value: string }): Promise<InvestigationIOC> {
+export async function createInvestigationIOC(id: string, payload: { ioc_type: InvestigationIOC['ioc_type']; value: string; source?: InvestigationIOC['source'] }): Promise<InvestigationIOC> {
   const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/iocs`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
-  if (!data || typeof data !== 'object' || !('item' in data)) throw new ApiError('Invalid IOC response.', 502)
+  if (!data || typeof data !== 'object' || !('item' in data) || !isInvestigationIOC(data.item)) throw new ApiError('Invalid IOC response.', 502)
   return (data as { item: InvestigationIOC }).item
+}
+
+export async function listInvestigationFindings(id: string): Promise<InvestigationFinding[]> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/findings`)
+  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items) ||
+    !(data as { items: unknown[] }).items.every(isInvestigationFinding)) {
+    throw new ApiError('Invalid finding response.', 502)
+  }
+  return (data as { items: InvestigationFinding[] }).items
+}
+
+export async function createInvestigationFinding(
+  id: string,
+  payload: { title: string; description?: string; severity: FindingSeverity },
+): Promise<InvestigationFinding> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/findings`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+  if (!data || typeof data !== 'object' || !('item' in data) || !isInvestigationFinding(data.item)) {
+    throw new ApiError('Invalid finding response.', 502)
+  }
+  return data.item
+}
+
+export interface InvestigationEvidence {
+  id: number
+  investigation_id: number
+  finding_id: number | null
+  evidence_type: string
+  title: string
+  content: string
+  source: string | null
+  created_at: string
+}
+
+function isInvestigationEvidence(value: unknown): value is InvestigationEvidence {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return Number.isInteger(item.id) && Number.isInteger(item.investigation_id) &&
+    (item.finding_id === null || Number.isInteger(item.finding_id)) &&
+    typeof item.evidence_type === 'string' && /^[a-z][a-z0-9_]*$/.test(item.evidence_type) &&
+    typeof item.title === 'string' && typeof item.content === 'string' &&
+    (item.source === null || typeof item.source === 'string') && typeof item.created_at === 'string'
+}
+
+export async function listInvestigationEvidence(id: string): Promise<InvestigationEvidence[]> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/evidence`)
+  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items) ||
+    !(data as { items: unknown[] }).items.every(isInvestigationEvidence)) {
+    throw new ApiError('Invalid evidence response.', 502)
+  }
+  return (data as { items: InvestigationEvidence[] }).items
+}
+
+export async function createInvestigationEvidence(
+  id: string,
+  payload: { evidence_type: string; title: string; content: string },
+): Promise<InvestigationEvidence> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/evidence`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+  if (!data || typeof data !== 'object' || !('item' in data) || !isInvestigationEvidence(data.item)) {
+    throw new ApiError('Invalid evidence response.', 502)
+  }
+  return data.item
+}
+
+export type InvestigationTimelineEventType = 'created' | 'status_changed' | 'ioc_added' | 'finding_created' | 'evidence_added'
+
+export interface InvestigationTimelineEvent {
+  id: number
+  investigation_id: number
+  event_type: InvestigationTimelineEventType
+  message: string
+  created_at: string
+}
+
+export interface InvestigationTimelinePage {
+  items: InvestigationTimelineEvent[]
+  limit: number
+  offset: number
+}
+
+const investigationTimelineEventTypes: InvestigationTimelineEventType[] = [
+  'created', 'status_changed', 'ioc_added', 'finding_created', 'evidence_added',
+]
+
+function isInvestigationTimelineEvent(value: unknown): value is InvestigationTimelineEvent {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return Number.isInteger(item.id) && Number.isInteger(item.investigation_id) &&
+    investigationTimelineEventTypes.includes(item.event_type as InvestigationTimelineEventType) &&
+    typeof item.message === 'string' && typeof item.created_at === 'string'
+}
+
+export async function listInvestigationTimeline(
+  id: string,
+  page: { limit?: number; offset?: number } = {},
+): Promise<InvestigationTimelinePage> {
+  const limit = page.limit ?? 20
+  const offset = page.offset ?? 0
+  const query = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/timeline?${query}`)
+  if (!data || typeof data !== 'object') throw new ApiError('Invalid timeline response.', 502)
+  const response = data as Record<string, unknown>
+  if (!Array.isArray(response.items) || !response.items.every(isInvestigationTimelineEvent) ||
+    !Number.isInteger(response.limit) || (response.limit as number) < 1 || (response.limit as number) > 100 ||
+    !Number.isInteger(response.offset) || (response.offset as number) < 0) {
+    throw new ApiError('Invalid timeline response.', 502)
+  }
+  return { items: response.items, limit: response.limit as number, offset: response.offset as number }
 }
 
 function getErrorMessage(data: unknown, fallback: string) {
