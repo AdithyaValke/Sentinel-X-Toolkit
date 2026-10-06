@@ -336,6 +336,35 @@
   .payload-tools-shell .payload-workspace .section-label { @apply mb-2; }
   .payload-tools-shell .payload-workspace .operation-grid { @apply gap-1.5; }
   .payload-tools-shell .payload-workspace-panel .workbench-footer { @apply mt-3 pt-2; }
+  .investigation-panel-heading { @apply flex items-start justify-between gap-4; }
+  .investigation-panel-heading h2 { @apply mt-1; }
+  .investigation-ioc-panel { @apply min-w-0; }
+  .investigation-ioc-form { @apply mt-5 grid gap-3 rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-4 md:grid-cols-[10rem_minmax(0,1fr)_auto] md:items-end; }
+  .investigation-ioc-form label { @apply mb-1.5 block text-[10px] font-semibold uppercase tracking-[.12em] text-slate-500; }
+  .investigation-ioc-form input,.investigation-ioc-form select { @apply min-h-10 w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20; }
+  .investigation-ioc-actions { @apply flex gap-2; }
+  .investigation-ioc-actions button { @apply min-h-10 whitespace-nowrap; }
+  .investigation-ioc-list { @apply mt-5 flex flex-col gap-2; }
+  .investigation-ioc-card { @apply flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/35 p-4 sm:flex-row sm:items-center sm:justify-between; }
+  .investigation-ioc-heading { @apply flex min-w-0 items-center gap-3; }
+  .investigation-ioc-heading code { @apply min-w-0 break-all font-mono text-sm text-slate-100; }
+  .investigation-ioc-badge { @apply rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider; }
+  .investigation-ioc-ip { @apply bg-cyan-400/10 text-cyan-300; }
+  .investigation-ioc-domain { @apply bg-violet-400/10 text-violet-300; }
+  .investigation-ioc-hash { @apply bg-amber-400/10 text-amber-300; }
+  .investigation-ioc-email { @apply bg-emerald-400/10 text-emerald-300; }
+  .investigation-ioc-source { @apply mt-2 text-xs capitalize text-slate-500; }
+  .investigation-ioc-meta { @apply flex gap-5 text-right; }
+  .investigation-ioc-meta dt { @apply text-[9px] uppercase tracking-wider text-slate-600; }
+  .investigation-ioc-meta dd { @apply mt-1 text-xs text-slate-300; }
+  .investigation-ioc-empty { @apply mt-5 flex flex-col items-start gap-3 rounded-xl border border-dashed border-slate-700 p-6 sm:flex-row sm:items-center; }
+  .investigation-ioc-empty > svg { @apply size-5 shrink-0 text-cyan-400; }
+  .investigation-ioc-empty h3 { @apply text-sm font-semibold text-slate-100; }
+  .investigation-ioc-empty p { @apply mt-1 text-xs text-slate-500; }
+  .investigation-ioc-empty button { @apply sm:ml-auto; }
+  .investigation-ioc-skeleton { @apply mt-5 flex flex-col gap-2; }
+  .investigation-ioc-skeleton span { @apply h-16 animate-pulse rounded-xl bg-slate-800/70; }
+  .investigation-form-error { @apply mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300; }
   @media (max-width: 1023px) {
     .workspace { @apply flex flex-col; }
     .operations { @apply order-2; }
