@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { callBackend, callChain, checkBackendHealth, extractIocs } from '../lib/api.ts'
+import { callBackend, callChain, checkBackendHealth, createInvestigation, extractIocs } from '../lib/api.ts'
 import { addChainStep, CHAIN_MAX_STEPS, CHAIN_OPERATION_DESCRIPTIONS, CHAIN_OPERATION_LABELS, CHAIN_REQUEST_MAX_BYTES, isChainResponse, moveChainStep, PAYLOAD_OPERATION_MAP, removeChainStep, serializedChainRequestBytes } from '../lib/payload-operations.ts'
 
 test('chain helpers add, remove, reorder, and enforce the step limit', () => {
@@ -33,6 +33,22 @@ test('IoC API sends categories and validates structured responses', async () => 
     assert.equal((await extractIocs('alert', ['ip'])).results[0].value, '192.0.2.1')
     globalThis.fetch = async () => new Response(JSON.stringify({ success: true, results: 'bad', summary: {}, error: null }), { status: 200, headers: { 'content-type': 'application/json' } })
     await assert.rejects(extractIocs('alert', ['ip']), /invalid response/i)
+  } finally { globalThis.fetch = originalFetch; Reflect.deleteProperty(globalThis, 'window') }
+})
+
+test('investigation creation sends only fields accepted by the create endpoint', async () => {
+  const originalFetch = globalThis.fetch
+  installBrowserTimerShim()
+  try {
+    globalThis.fetch = async (_input, init) => {
+      assert.equal(init?.method, 'POST')
+      assert.equal(init?.credentials, 'include')
+      assert.deepEqual(JSON.parse(String(init?.body)), { title: 'Suspicious activity', description: 'Review sign-in logs' })
+      return new Response(JSON.stringify({ item: { id: 17, title: 'Suspicious activity', description: 'Review sign-in logs', status: 'open', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', closed_at: null } }), { status: 201, headers: { 'content-type': 'application/json' } })
+    }
+    const created = await createInvestigation({ title: 'Suspicious activity', description: 'Review sign-in logs' })
+    assert.equal(created.id, 17)
+    assert.equal(created.status, 'open')
   } finally { globalThis.fetch = originalFetch; Reflect.deleteProperty(globalThis, 'window') }
 })
 
