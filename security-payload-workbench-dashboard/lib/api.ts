@@ -128,7 +128,7 @@ export async function getInvestigation(id: string): Promise<Investigation> {
   return (data as { item: Investigation }).item
 }
 
-export async function createInvestigation(payload: { title: string; description?: string; status?: Investigation['status'] }): Promise<Investigation> {
+export async function createInvestigation(payload: { title: string; description?: string }): Promise<Investigation> {
   const data = await investigationRequest('/api/investigations', { method: 'POST', body: JSON.stringify(payload) })
   if (!data || typeof data !== 'object' || !('item' in data)) throw new ApiError('Invalid investigation response.', 502)
   return (data as { item: Investigation }).item
