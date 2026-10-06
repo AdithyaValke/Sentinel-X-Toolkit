@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Fingerprint, FlaskConical, Hash, LayoutDashboard, Menu, Moon, Search, Sun, TerminalSquare, X } from 'lucide-react'
+import { ArrowRight, Fingerprint, FlaskConical, Hash, LayoutDashboard, Menu, Moon, Search, Sun, TerminalSquare, Wrench, X } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { searchGlobal, type SearchEntry } from '@/lib/global-search'
 import { useAuth, userDisplayName, userInitials } from '@/lib/auth'
 
 const pages: Record<string, { breadcrumb: string; title: string }> = {
   '/dashboard': { breadcrumb: 'Workspace / Overview', title: 'Dashboard' },
+  '/common-tools': { breadcrumb: 'Workspace / Common Tools', title: 'Common Tools' },
   '/payload-tools': { breadcrumb: 'Workspace / Tools', title: 'Payload Tools' },
   '/chain-builder': { breadcrumb: 'Workspace / Tools', title: 'Chain Builder' },
   '/hash-tools': { breadcrumb: 'Workspace / Hash Tools', title: 'Hash Converter' },
@@ -23,6 +24,7 @@ const resultIcons = {
   hash: Hash,
   identify: Fingerprint,
   security: FlaskConical,
+  common: Wrench,
 }
 
 export function AppHeader({ onOpenNavigation, navigationOpen }: { onOpenNavigation: () => void; navigationOpen: boolean }) {
