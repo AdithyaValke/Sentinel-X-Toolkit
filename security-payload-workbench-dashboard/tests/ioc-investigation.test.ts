@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ApiError, createInvestigationIOC, listInvestigationsPage } from '../lib/api.ts'
+import { ApiError, createInvestigationIOC, deleteInvestigation, listInvestigationsPage, updateInvestigation } from '../lib/api.ts'
 import { canPersistIndicators, saveIndicatorsToInvestigation, selectVisibleIndicators, toggleIndicatorSelection, type ExtractedIndicator } from '../lib/ioc-investigation.ts'
 
 const indicators: ExtractedIndicator[] = [
@@ -8,6 +8,76 @@ const indicators: ExtractedIndicator[] = [
   { id: 'domain:cdn.example.test', category: 'domain', value: 'cdn.example.test', occurrences: 1, context: 'cdn.example.test' },
   { id: 'email:analyst@example.test', category: 'email', value: 'analyst@example.test', occurrences: 1, context: 'analyst@example.test' },
 ]
+
+const investigationRecord = (overrides: Record<string, unknown> = {}) => ({
+  id: 41, title: 'Incident', description: 'Current description', status: 'open',
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', closed_at: null,
+  ...overrides,
+})
+
+test('investigation updates send only supported fields and return the updated record', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    let sentBody: unknown
+    globalThis.fetch = async (input, init) => {
+      assert.match(String(input), /\/api\/investigations\/41$/)
+      assert.equal(init?.method, 'PATCH')
+      assert.equal(init?.credentials, 'include')
+      sentBody = JSON.parse(String(init?.body))
+      return new Response(JSON.stringify({ item: investigationRecord({ title: 'Updated', description: null }) }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    const updated = await updateInvestigation('41', { title: 'Updated', description: null })
+    assert.deepEqual(sentBody, { title: 'Updated', description: null })
+    assert.equal(updated.title, 'Updated')
+    assert.equal(updated.description, null)
+    assert.equal('owner_id' in (sentBody as object), false)
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('investigation updates support close and reopen payloads and preserve API validation errors', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    const bodies: unknown[] = []
+    globalThis.fetch = async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { status: string }
+      bodies.push(body)
+      return new Response(JSON.stringify({ item: investigationRecord({ status: body.status, closed_at: body.status === 'closed' ? '2026-01-03T00:00:00Z' : null }) }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    assert.equal((await updateInvestigation('41', { status: 'closed' })).status, 'closed')
+    assert.equal((await updateInvestigation('41', { status: 'open' })).status, 'open')
+    assert.deepEqual(bodies, [{ status: 'closed' }, { status: 'open' }])
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: 'title must be at most 200 characters' }), { status: 400, headers: { 'content-type': 'application/json' } })
+    await assert.rejects(updateInvestigation('41', { title: 'x'.repeat(201) }), (error: unknown) => error instanceof ApiError && error.status === 400 && /200 characters/.test(error.message))
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('investigation update preserves authentication failures', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    let requestInit: RequestInit | undefined
+    globalThis.fetch = async (_input, init) => {
+      requestInit = init
+      return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401, headers: { 'content-type': 'application/json' } })
+    }
+    await assert.rejects(updateInvestigation('41', { status: 'closed' }), (error: unknown) => error instanceof ApiError && error.status === 401)
+    assert.equal(requestInit?.credentials, 'include')
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('investigation deletion sends authenticated DELETE and handles success and failure', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async (input, init) => {
+      assert.match(String(input), /\/api\/investigations\/41$/)
+      assert.equal(init?.method, 'DELETE')
+      assert.equal(init?.credentials, 'include')
+      return new Response(null, { status: 204 })
+    }
+    await deleteInvestigation('41')
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: 'Investigation not found' }), { status: 404, headers: { 'content-type': 'application/json' } })
+    await assert.rejects(deleteInvestigation('41'), (error: unknown) => error instanceof ApiError && error.status === 404 && error.message === 'Investigation not found')
+  } finally { globalThis.fetch = originalFetch }
+})
 
 test('selection supports toggle, multi-select, visible selection, clear, and save gating', () => {
   let selected = toggleIndicatorSelection(new Set(), indicators[0].id)

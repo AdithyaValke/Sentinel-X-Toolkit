@@ -213,6 +213,18 @@ export async function createInvestigation(payload: { title: string; description?
   return (data as { item: Investigation }).item
 }
 
+export type UpdateInvestigationPayload = Partial<Pick<Investigation, 'title' | 'description' | 'status'>>
+
+export async function updateInvestigation(id: string, payload: UpdateInvestigationPayload): Promise<Investigation> {
+  const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  if (!data || typeof data !== 'object' || !('item' in data) || !isInvestigation((data as { item: unknown }).item)) throw new ApiError('Invalid investigation response.', 502)
+  return (data as { item: Investigation }).item
+}
+
+export async function deleteInvestigation(id: string): Promise<void> {
+  await investigationRequest(`/api/investigations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 export async function listInvestigationIOCs(id: string): Promise<InvestigationIOC[]> {
   const data = await investigationRequest(`/api/investigations/${encodeURIComponent(id)}/iocs`)
   if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items) ||
