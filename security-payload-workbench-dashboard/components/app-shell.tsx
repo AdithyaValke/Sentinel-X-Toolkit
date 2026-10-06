@@ -20,6 +20,7 @@ import { AppHeader } from '@/components/app-header'
 import { useTheme } from '@/components/theme-provider'
 import { checkBackendHealth } from '@/lib/api'
 import { LatestRequest } from '@/lib/latest-request'
+import { AuthProvider } from '@/lib/auth'
 
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -64,8 +65,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const apiStatusLabel = apiStatus === 'online' ? 'API online' : apiStatus === 'offline' ? 'API offline' : 'Checking API'
 
+  if (pathname === '/auth') {
+    return <AuthProvider>{children}</AuthProvider>
+  }
+
   return (
-    <ApiStatusContext.Provider value={apiStatus}>
+    <AuthProvider>
+      <ApiStatusContext.Provider value={apiStatus}>
       <div className={`app-shell ${isDark ? 'app-shell-dark' : 'app-shell-light'} ${pathname === '/chain-builder' ? 'app-shell-chain' : ''}`}>
         {mobileOpen && <button type="button" aria-label="Close navigation" className="app-sidebar-backdrop" onClick={() => setMobileOpen(false)} />}
         <aside id="app-sidebar" className={`app-sidebar ${collapsed ? 'app-sidebar-collapsed' : ''} ${mobileOpen ? 'app-sidebar-open' : ''}`}>
@@ -102,6 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </div>
-    </ApiStatusContext.Provider>
+      </ApiStatusContext.Provider>
+    </AuthProvider>
   )
 }
