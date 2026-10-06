@@ -62,6 +62,20 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     icon: 'identify',
   },
   {
+    title: 'Investigations',
+    description: 'Create and manage persistent security investigations.',
+    href: '/investigations',
+    keywords: ['cases', 'incidents', 'persistent investigations', 'new investigation', 'tracking'],
+    icon: 'security',
+  },
+  {
+    title: 'New Investigation',
+    description: 'Create a persistent security investigation.',
+    href: '/investigations?new=1',
+    keywords: ['create case', 'new case', 'investigation'],
+    icon: 'security',
+  },
+  {
     title: 'Analysis Lab',
     description: 'Explore defensive security references and utilities.',
     href: '/security-lab',

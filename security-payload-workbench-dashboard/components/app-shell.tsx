@@ -8,6 +8,7 @@ import {
   FlaskConical,
   GitBranch,
   LayoutDashboard,
+  LockKeyhole,
   PanelLeftClose,
   PanelLeftOpen,
   Wrench,
@@ -24,6 +25,7 @@ const navigation = [
   { label: 'Common Tools', icon: Wrench, href: '/common-tools' },
   { label: 'Chain Builder', icon: GitBranch, href: '/chain-builder' },
   { label: 'Analysis Lab', icon: FlaskConical, href: '/security-lab' },
+  { label: 'Investigations 🔒', icon: LockKeyhole, href: '/investigations' },
 ]
 
 type ApiStatus = 'checking' | 'online' | 'offline'
