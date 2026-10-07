@@ -7,6 +7,14 @@ type Indentation = '2' | '4' | 'tab'
 
 const placeholder = '{\n  "name": "SentinelX",\n  "enabled": true\n}'
 
+function lineCount(value: string) {
+  return Math.max(1, value.split('\n').length)
+}
+
+function LineNumbers({ value }: { value: string }) {
+  return <div className="json-line-numbers" aria-hidden="true">{Array.from({ length: lineCount(value) }, (_, index) => <span key={index}>{index + 1}</span>)}</div>
+}
+
 export function JsonFormatter() {
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
@@ -40,11 +48,7 @@ export function JsonFormatter() {
   function minifyJson() {
     const formatted = parseJson()
     if (formatted === null) return
-    try {
-      setOutput(JSON.stringify(JSON.parse(input) as unknown))
-    } catch {
-      // parseJson already reports the native parser error.
-    }
+    try { setOutput(JSON.stringify(JSON.parse(input) as unknown)) } catch { /* parseJson already reports the native parser error. */ }
   }
 
   async function copyResult() {
@@ -53,56 +57,59 @@ export function JsonFormatter() {
       await navigator.clipboard.writeText(output)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      setError('Clipboard access failed. Select and copy the output manually.')
-    }
+    } catch { setError('Clipboard access failed. Select and copy the output manually.') }
   }
 
   function clearAll() {
-    setInput('')
-    setOutput('')
-    setError('')
-    setCopied(false)
+    setInput(''); setOutput(''); setError(''); setCopied(false)
   }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="workbench-shell payload-tools-shell">
-        <header className="workbench-header">
+      <div className="workbench-shell payload-tools-shell json-formatter-shell">
+        <header className="workbench-header json-formatter-header">
           <div>
-            <div className="eyebrow"><ShieldCheck /> Security tooling</div>
+            <div className="eyebrow"><ShieldCheck /> Security tooling / data transform</div>
             <h1>JSON <span>Formatter</span></h1>
             <p>Validate, format, and minify JSON locally in your browser. Nothing is sent to the backend.</p>
           </div>
           <div className="header-tools"><span className="api-status-pill api-status-online"><span aria-hidden="true" />Client-side only</span></div>
         </header>
 
-        <div className="payload-workspace-panel">
-          <section className="json-formatter-workspace" aria-label="JSON formatter workspace">
-            <article className="buffer-card">
-              <div className="buffer-heading"><h2><span>01</span>Input JSON</h2><small>{input.length} characters</small></div>
-              <textarea value={input} onChange={(event) => { setInput(event.target.value); setOutput(''); setError(''); setCopied(false) }} placeholder={placeholder} className="buffer-textarea json-editor" spellCheck={false} aria-label="JSON input" />
-              <div className="buffer-meta"><span>Plain text only</span><button type="button" onClick={clearAll} disabled={!input && !output} aria-label="Clear JSON input">Clear</button></div>
-            </article>
+        <section className="json-formatter-workspace" aria-label="JSON formatter workspace">
+          <article className="json-editor-panel">
+            <div className="json-panel-header">
+              <div className="json-panel-title"><span className="json-panel-icon"><FileJson aria-hidden="true" /></span><h2>Input JSON</h2></div>
+              <div className="json-panel-stats"><span className={error ? 'json-status invalid' : input.trim() ? 'json-status valid' : 'json-status'}>{error ? 'INVALID JSON' : input.trim() ? 'VALID JSON' : 'READY'}</span><span>{input.length} chars / {lineCount(input)} lines</span></div>
+            </div>
+            <div className={`json-code-surface ${error ? 'has-error' : ''}`}>
+              <LineNumbers value={input || placeholder} />
+              <textarea value={input} onChange={(event) => { setInput(event.target.value); setOutput(''); setError(''); setCopied(false) }} placeholder={placeholder} className="json-code-input" spellCheck={false} aria-label="JSON input" />
+            </div>
+            <div className="json-panel-footer"><span>EDITOR / UTF-8</span><span>SCROLL TO INSPECT</span></div>
+          </article>
 
-            <article className="buffer-card">
-              <div className="buffer-heading"><h2><span>02</span>Result</h2><small aria-live="polite">{error ? 'Invalid JSON' : output ? 'Valid JSON' : 'Waiting'}</small></div>
-              <pre className={`json-output ${error ? 'buffer-error' : ''}`} aria-label="JSON result" aria-live="polite">{output || 'Formatted output will appear here...'}</pre>
-              {error && <p role="alert" className="buffer-error-message">{error}</p>}
-              <div className="buffer-meta"><span>{output.length} characters</span><span>Safe text output</span></div>
-            </article>
-          </section>
+          <article className="json-editor-panel">
+            <div className="json-panel-header">
+              <div className="json-panel-title"><span className="json-panel-icon"><WandSparkles aria-hidden="true" /></span><h2>Formatted Output</h2></div>
+              <div className="json-panel-stats"><span>{output.length} chars / {lineCount(output)} lines</span></div>
+            </div>
+            <div className={`json-code-surface output-surface ${error ? 'has-error' : ''}`}>
+              <LineNumbers value={output || 'Formatted output will appear here...'} />
+              <pre className="json-code-output" aria-label="JSON result" aria-live="polite">{output || 'Formatted output will appear here...'}</pre>
+            </div>
+            {error && <p role="alert" className="json-error-message">{error}</p>}
+            <div className="json-panel-footer"><span className={error ? 'json-status invalid' : output ? 'json-status valid' : 'json-status'}>{error ? 'INVALID JSON' : output ? 'VALID JSON' : 'AWAITING INPUT'}</span><span>PLAIN TEXT ONLY</span></div>
+          </article>
+        </section>
 
-          <div className="json-formatter-controls" aria-label="JSON actions">
-            <label htmlFor="json-indent">Indentation</label>
-            <select id="json-indent" value={indentation} onChange={(event) => setIndentation(event.target.value as Indentation)}>
-              <option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">Tabs</option>
-            </select>
-            <button type="button" className="footer-action" onClick={parseJson}><WandSparkles aria-hidden="true" /> Format / Validate</button>
-            <button type="button" className="footer-action" onClick={minifyJson}><FileJson aria-hidden="true" /> Minify</button>
-            <button type="button" className="footer-action" onClick={copyResult} disabled={!output}>{copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />} {copied ? 'Copied' : 'Copy result'}</button>
-            <button type="button" className="footer-action" onClick={clearAll} disabled={!input && !output}><Eraser aria-hidden="true" /> Clear</button>
-          </div>
+        <div className="json-formatter-controls" aria-label="JSON actions">
+          <label htmlFor="json-indent">Indentation</label>
+          <select id="json-indent" value={indentation} onChange={(event) => setIndentation(event.target.value as Indentation)}><option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">Tabs</option></select>
+          <button type="button" className="json-primary-action" onClick={parseJson}><WandSparkles aria-hidden="true" /> Format &amp; Validate</button>
+          <button type="button" className="json-tool-action" onClick={minifyJson}><FileJson aria-hidden="true" /> Minify</button>
+          <button type="button" className="json-tool-action" onClick={copyResult} disabled={!output}>{copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />} {copied ? 'Copied' : 'Copy'}</button>
+          <button type="button" className="json-tool-action" onClick={clearAll} disabled={!input && !output}><Eraser aria-hidden="true" /> Clear</button>
         </div>
       </div>
     </main>
@@ -111,20 +118,11 @@ export function JsonFormatter() {
 
 export function formatJson(input: string, indentation: Indentation = '2') {
   if (!input.trim()) return { output: '', error: 'Enter JSON to validate and format.' }
-  try {
-    const value = JSON.parse(input) as unknown
-    return { output: JSON.stringify(value, null, indentation === 'tab' ? '\t' : Number(indentation)), error: '' }
-  } catch (caught) {
-    return { output: '', error: caught instanceof Error ? caught.message : 'The JSON could not be parsed.' }
-  }
+  try { const value = JSON.parse(input) as unknown; return { output: JSON.stringify(value, null, indentation === 'tab' ? '\t' : Number(indentation)), error: '' } } catch (caught) { return { output: '', error: caught instanceof Error ? caught.message : 'The JSON could not be parsed.' } }
 }
 
 export function minifyJson(input: string) {
-  try {
-    return { output: JSON.stringify(JSON.parse(input) as unknown), error: '' }
-  } catch (caught) {
-    return { output: '', error: caught instanceof Error ? caught.message : 'The JSON could not be parsed.' }
-  }
+  try { return { output: JSON.stringify(JSON.parse(input) as unknown), error: '' } } catch (caught) { return { output: '', error: caught instanceof Error ? caught.message : 'The JSON could not be parsed.' } }
 }
 
 export type { Indentation }
