@@ -27,6 +27,12 @@ export const SECURITY_HEADERS_CATALOG_ENTRY = {
   tab: 'security-headers',
 } as const
 
+export const REGEX_TESTER_CATALOG_ENTRY = {
+  title: 'Regex Tester & Pattern Analyzer',
+  description: 'Test regular expressions against logs and text locally, with match positions and capture groups.',
+  href: '/regex-tester',
+} as const
+
 export const SECURITY_LAB_TAB_IDS = ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor', 'security-headers'] as const
 export type SecurityLabTabId = typeof SECURITY_LAB_TAB_IDS[number]
 

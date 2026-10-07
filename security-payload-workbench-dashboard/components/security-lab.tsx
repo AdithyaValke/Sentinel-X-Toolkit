@@ -24,7 +24,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { formatHttpUrl, validateIP } from '@/lib/security-lab-utils'
-import { IOC_EXTRACTOR_CATALOG_ENTRY, JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
+import { IOC_EXTRACTOR_CATALOG_ENTRY, JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, REGEX_TESTER_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY, parseSecurityLabTab, type SecurityLabTabId } from '@/lib/security-lab-catalog.ts'
 import { IocExtractor } from '@/components/ioc-extractor'
 import { SecurityHeadersAnalyzer } from '@/components/security-headers-analyzer'
 import { SecurityLabJwtPanel } from '@/components/security-lab-jwt-panel'
@@ -647,6 +647,19 @@ export function SecurityLab() {
                   <p className="mt-2 text-xs leading-5 text-slate-400">{JWT_DECODER_CATALOG_ENTRY.description} Token data stays in this browser tab.</p>
                   <Link href={JWT_DECODER_CATALOG_ENTRY.href} className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
                     Open JWT Decoder <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </article>
+
+                {/* Card: Regex Tester */}
+                <article className="flex flex-col rounded-2xl border border-white/[0.08] bg-[#0d121c] p-6 transition duration-200 hover:border-cyan-400/40 hover:bg-[#101724]">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/20"><ScanSearch className="size-5" /></span>
+                    <span className="rounded bg-cyan-400/10 px-2 py-0.5 text-right font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">Client-side only</span>
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-white">{REGEX_TESTER_CATALOG_ENTRY.title}</h3>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{REGEX_TESTER_CATALOG_ENTRY.description}</p>
+                  <Link href={REGEX_TESTER_CATALOG_ENTRY.href} className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
+                    Open Regex Tester <ArrowUpRight className="size-3.5" />
                   </Link>
                 </article>
 

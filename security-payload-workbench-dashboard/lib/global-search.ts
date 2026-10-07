@@ -1,4 +1,4 @@
-import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY } from './security-lab-catalog.ts'
+import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, REGEX_TESTER_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY } from './security-lab-catalog.ts'
 
 export type SearchEntry = {
   title: string
@@ -22,6 +22,20 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     href: '/common-tools',
     keywords: ['common utilities', 'everyday tools', 'converters', 'encoding', 'hashing', 'identification'],
     icon: 'common',
+  },
+  {
+    title: 'JSON Formatter',
+    description: 'Validate, format, and minify JSON locally in your browser.',
+    href: '/json-formatter',
+    keywords: ['json', 'json validator', 'pretty print', 'format json', 'minify json', 'formatter'],
+    icon: 'common',
+  },
+  {
+    title: REGEX_TESTER_CATALOG_ENTRY.title,
+    description: REGEX_TESTER_CATALOG_ENTRY.description,
+    href: REGEX_TESTER_CATALOG_ENTRY.href,
+    keywords: ['regex', 'regular expression', 'pattern analyzer', 'matches', 'capture groups', 'logs', 'regexp'],
+    icon: 'security',
   },
   {
     title: PAYLOAD_GENERATOR_CATALOG_ENTRY.title,
