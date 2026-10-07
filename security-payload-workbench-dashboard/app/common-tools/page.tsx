@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowUpRight, Fingerprint, Hash, TerminalSquare } from 'lucide-react'
+import { ArrowUpRight, Braces, Fingerprint, Hash, TerminalSquare } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Common Tools | SentinelX',
@@ -11,6 +11,7 @@ const tools = [
   { title: 'Payload Tools', description: 'Encode and decode Base64, URL, and Hex data in one focused workspace.', href: '/payload-tools', icon: TerminalSquare, accent: 'dashboard-icon-amber', items: ['Base64 encode / decode', 'URL encode / decode', 'Hex encode / decode'] },
   { title: 'Hash Tools', description: 'Generate standard message digests from text with familiar secure algorithms.', href: '/hash-tools', icon: Hash, accent: 'dashboard-icon-cyan', items: ['MD5', 'SHA-256', 'SHA-512'] },
   { title: 'Identify Hash', description: 'Inspect a hash signature and review likely algorithms with supporting evidence.', href: '/identify-hash', icon: Fingerprint, accent: 'dashboard-icon-violet', items: ['Pattern analysis', 'Likely algorithms', 'Evidence and guidance'] },
+  { title: 'JSON Formatter', description: 'Validate, format, and minify JSON locally in your browser.', href: '/json-formatter', icon: Braces, accent: 'dashboard-icon-emerald', items: ['Validate JSON', 'Pretty-print output', 'Minify safely'] },
 ]
 
 export default function CommonToolsPage() {
@@ -29,7 +30,7 @@ export default function CommonToolsPage() {
 
         <div className="dashboard-section-heading">
           <div><p className="dashboard-section-kicker">Toolkit</p><h2>Choose a utility</h2></div>
-          <span className="dashboard-section-link">3 tool groups</span>
+          <span className="dashboard-section-link">4 tool groups</span>
         </div>
         <div className="dashboard-tool-grid common-tools-grid">
           {tools.map(({ title, description, href, icon: Icon, accent, items }) => (
