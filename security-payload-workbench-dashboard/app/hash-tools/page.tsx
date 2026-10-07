@@ -3,7 +3,7 @@ import { HashConverter } from '@/components/hash-converter'
 
 export const metadata: Metadata = {
   title: 'Hash Converter | SentinelX',
-  description: 'Generate MD5, SHA-256, and SHA-512 hashes with the SentinelX API.',
+  description: 'Generate MD5, SHA-1, SHA-2, SHA-3, and SHAKE digests with the SentinelX API.',
 }
 
 export default function HashToolsPage() {

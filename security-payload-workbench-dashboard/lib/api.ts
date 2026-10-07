@@ -112,7 +112,10 @@ async function investigationRequest(path: string, options: RequestInit = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
   })
   const data: unknown = await response.json().catch(() => null)
-  if (!response.ok) throw new ApiError(getErrorMessage(data, 'Investigation request failed.'), response.status)
+  if (!response.ok) throw new ApiError(
+    response.status === 503 ? 'Investigation service is temporarily unavailable. Try again shortly.' : getErrorMessage(data, 'Investigation request failed.'),
+    response.status,
+  )
   return data
 }
 
@@ -369,7 +372,7 @@ async function authRequest(path: string, options: RequestInit = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
   })
   const data: unknown = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(getErrorMessage(data, 'Authentication request failed.'))
+  if (!response.ok) throw new ApiError(getErrorMessage(data, 'Authentication request failed.'), response.status)
   return data
 }
 
@@ -377,7 +380,7 @@ export async function getCurrentUser(): Promise<AuthApiUser | null> {
   const response = await fetch(`${getApiBaseUrl()}/api/auth/me`, { credentials: 'include' })
   if (response.status === 401 || response.status === 403) return null
   const data: unknown = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(getErrorMessage(data, 'Could not check your session.'))
+  if (!response.ok) throw new ApiError(getErrorMessage(data, 'Could not check your session.'), response.status)
   if (!data || typeof data !== 'object') return null
   const value = data as Record<string, unknown>
   const user = (value.user && typeof value.user === 'object' ? value.user : value) as Record<string, unknown>

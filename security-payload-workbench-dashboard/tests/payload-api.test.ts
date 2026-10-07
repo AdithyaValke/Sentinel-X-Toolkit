@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { callBackend, callChain, checkBackendHealth, createInvestigation, extractIocs } from '../lib/api.ts'
+import { ApiError, callBackend, callChain, checkBackendHealth, createInvestigation, extractIocs, getCurrentUser, login } from '../lib/api.ts'
 import { HASH_ALGORITHM_OPTIONS } from '../lib/hash-algorithms.ts'
 import { addChainStep, CHAIN_MAX_STEPS, CHAIN_OPERATION_DESCRIPTIONS, CHAIN_OPERATION_LABELS, CHAIN_REQUEST_MAX_BYTES, isChainResponse, moveChainStep, PAYLOAD_OPERATION_MAP, removeChainStep, serializedChainRequestBytes } from '../lib/payload-operations.ts'
 
@@ -200,6 +200,20 @@ test('health check reports only an explicit successful backend status', async ()
 
     globalThis.fetch = async () => new Response('{}', { status: 503 })
     assert.equal(await checkBackendHealth(), false)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('session lookup distinguishes an unavailable service from a signed-out session', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ success: false, error: 'Authentication required' }), { status: 401 })
+    assert.equal(await getCurrentUser(), null)
+
+    globalThis.fetch = async () => new Response(JSON.stringify({ success: false, error: 'Authentication service unavailable' }), { status: 503 })
+    await assert.rejects(getCurrentUser(), (error: unknown) => error instanceof ApiError && error.status === 503 && error.message === 'Authentication service unavailable')
+    await assert.rejects(login({ email: 'person@example.org', password: 'test-password' }), (error: unknown) => error instanceof ApiError && error.status === 503)
   } finally {
     globalThis.fetch = originalFetch
   }

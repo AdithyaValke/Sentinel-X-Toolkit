@@ -8,7 +8,7 @@ import { getActivityServerSnapshot, getActivitySnapshot, localActivityStore } fr
 
 const commonTools = [
   { title: 'Payload Tools', description: 'Encode and decode Base64, URL, and Hex data.', icon: TerminalSquare, accent: 'dashboard-icon-amber', href: '/payload-tools' },
-  { title: 'Hash Tools', description: 'Generate MD5, SHA-256, and SHA-512 hashes.', icon: Hash, accent: 'dashboard-icon-cyan', href: '/hash-tools' },
+  { title: 'Hash Tools', description: 'Generate MD5, SHA-1, SHA-2, SHA-3, and SHAKE digests.', icon: Hash, accent: 'dashboard-icon-cyan', href: '/hash-tools' },
   { title: 'JSON Formatter', description: 'Validate, format, and minify JSON locally in your browser.', icon: FileJson, accent: 'dashboard-icon-emerald', href: '/json-formatter' },
   { title: 'Identify Hash', description: 'Review likely algorithms for a hash string.', icon: Fingerprint, accent: 'dashboard-icon-violet', href: '/identify-hash' },
 ]

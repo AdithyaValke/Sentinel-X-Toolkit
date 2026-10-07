@@ -54,7 +54,7 @@ function TimelineEvent({ event, isNewest }: { event: InvestigationTimelineEvent;
 }
 
 export function InvestigationWorkspace({ id }: { id: string }) {
-  const { status: authStatus } = useAuth()
+  const { status: authStatus, refresh } = useAuth()
   const router = useRouter()
   const [item, setItem] = useState<Investigation | null>(null)
   const [iocs, setIocs] = useState<InvestigationIOC[]>([])
@@ -125,9 +125,9 @@ export function InvestigationWorkspace({ id }: { id: string }) {
   }
   const load = () => {
     setLoading(true); setError('')
-    Promise.all([getInvestigation(id), loadIocs(), loadFindings(), loadEvidence(), loadTimeline(true)]).then(([investigation]) => setItem(investigation)).catch((cause) => setError(cause instanceof ApiError && cause.status === 404 ? 'Investigation not found.' : 'We could not load this investigation.')).finally(() => setLoading(false))
+    Promise.all([getInvestigation(id), loadIocs(), loadFindings(), loadEvidence(), loadTimeline(true)]).then(([investigation]) => setItem(investigation)).catch((cause) => setError(cause instanceof ApiError && cause.status === 404 ? 'Investigation not found.' : cause instanceof ApiError && cause.status === 503 ? cause.message : 'We could not load this investigation.')).finally(() => setLoading(false))
   }
-  useEffect(() => { if (authStatus === 'authenticated') load(); else if (authStatus === 'unauthenticated') setLoading(false) }, [authStatus, id])
+  useEffect(() => { if (authStatus === 'authenticated') load(); else if (authStatus === 'unauthenticated' || authStatus === 'unavailable') setLoading(false) }, [authStatus, id])
 
   const submitIoc = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -240,6 +240,7 @@ export function InvestigationWorkspace({ id }: { id: string }) {
 
   if (authStatus === 'loading' || loading) return <main className="dashboard-page"><div className="dashboard-container"><div className="investigation-loading"><span /><span /><span /></div></div></main>
   if (authStatus === 'unauthenticated') return <main className="dashboard-page"><div className="dashboard-container"><section className="investigation-gate"><div className="investigation-gate-icon"><LockKeyhole aria-hidden="true" /></div><h1>Sign in to view investigations</h1><p>This workspace is available to authenticated analysts.</p><Link href="/auth" className="investigation-primary-button">Sign In</Link></section></div></main>
+  if (authStatus === 'unavailable') return <main className="dashboard-page"><div className="dashboard-container"><section className="investigation-gate"><div className="investigation-gate-icon"><ShieldAlert aria-hidden="true" /></div><h1>Investigation service unavailable</h1><p>We cannot check your session or load investigation data right now. Try again shortly.</p><button type="button" className="investigation-primary-button" onClick={() => void refresh()}>Retry</button></section></div></main>
   if (error || !item) return <main className="dashboard-page"><div className="dashboard-container"><section className="investigation-empty"><ShieldAlert aria-hidden="true" /><h1>{error || 'Investigation not found.'}</h1><button className="investigation-secondary-button" type="button" onClick={load}><RefreshCw aria-hidden="true" />Retry</button></section></div></main>
 
   return <main className="dashboard-page investigation-detail-page"><div className="dashboard-container"><section className="investigation-detail-header"><div className="investigation-detail-heading"><p className="dashboard-eyebrow"><span className="dashboard-eyebrow-dot" />Investigation #{item.id}</p><div className="investigation-title-row"><h1>{item.title}</h1><span className={`investigation-status investigation-status-${item.status}`}>{statusLabels[item.status]}</span></div><p>{item.description || 'No description was added to this investigation.'}</p></div><dl className="investigation-header-meta"><div><dt>Created</dt><dd>{formatDate(item.created_at)}</dd></div><div><dt>Updated</dt><dd>{formatDate(item.updated_at)}</dd></div><div><dt>Status</dt><dd>{statusLabels[item.status]}</dd></div></dl><div className="investigation-management"><button className="investigation-management-trigger" type="button" aria-label="Investigation management" aria-expanded={showManagementMenu} onClick={() => setShowManagementMenu((open) => !open)}><MoreHorizontal aria-hidden="true" /></button>{showManagementMenu && <div className="investigation-management-menu" role="menu"><button type="button" role="menuitem" onClick={() => openManagementAction('edit')}>Edit Investigation</button>{item.status === 'open' && <button type="button" role="menuitem" onClick={() => openManagementAction('close')}>Close Investigation</button>}{item.status === 'closed' && <button type="button" role="menuitem" onClick={() => openManagementAction('reopen')}>Reopen Investigation</button>}<div className="investigation-management-divider" /><button className="investigation-management-danger" type="button" role="menuitem" onClick={() => openManagementAction('delete')}>Delete Investigation</button></div>}</div></section>

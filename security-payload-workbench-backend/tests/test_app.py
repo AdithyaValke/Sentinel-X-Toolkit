@@ -1,8 +1,23 @@
 import hashlib
+import importlib.util
+from contextlib import AbstractContextManager
+from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from app import app, limiter, _is_trusted_origin, _rate_limit_configuration
+
+
+def _raise_unexpected_test_error():
+    raise ValueError("private implementation detail")
+
+
+app.add_url_rule(
+    "/api/test-only-unexpected-error",
+    endpoint="test_only_unexpected_error",
+    view_func=_raise_unexpected_test_error,
+)
 
 
 @pytest.fixture
@@ -28,6 +43,105 @@ def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.get_json() == {"status": "ok"}
+
+
+def test_render_application_starts_without_database_url(monkeypatch):
+    import database as database_module
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setenv("RATE_LIMIT_STORAGE_URI", "redis://127.0.0.1:6379/0")
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://sentinelx.example")
+    monkeypatch.setattr(database_module, "dotenv_values", lambda _path: {})
+    app_path = Path(__file__).resolve().parents[1] / "app.py"
+    spec = importlib.util.spec_from_file_location("app_without_database", app_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.app.extensions["database"] is None
+    client = module.app.test_client()
+    assert client.get("/health").status_code == 200
+
+
+def test_health_and_stateless_api_work_without_database(client, monkeypatch):
+    monkeypatch.setitem(app.extensions, "database", None)
+    assert client.get("/health").status_code == 200
+    response = client.post("/api/process", json={"input_text": "hello", "operation": "base64_encode"})
+    assert response.status_code == 200
+    assert response.get_json()["result"] == "aGVsbG8="
+
+
+def test_database_connectivity_failures_return_safe_503_for_auth_and_investigations(client, monkeypatch):
+    class FailedSession(AbstractContextManager):
+        def __enter__(self):
+            raise OperationalError("SELECT 1", {}, OSError(111, "connection refused"))
+
+        def __exit__(self, *_args):
+            return False
+
+        def begin(self):
+            return self
+
+    class FailedSessionFactory:
+        def __call__(self):
+            return FailedSession()
+
+        def begin(self):
+            return FailedSession()
+
+    class FailedDatabase:
+        sessions = FailedSessionFactory()
+
+    monkeypatch.setitem(app.extensions, "database", FailedDatabase())
+    client.set_cookie("sentinelx_session", "a-valid-looking-session-token", path="/api")
+    auth_response = client.get("/api/auth/me")
+    investigation_response = client.get("/api/investigations")
+    assert auth_response.status_code == 503
+    assert investigation_response.status_code == 503
+    for response in (auth_response, investigation_response):
+        body = response.get_data(as_text=True).lower()
+        assert "connection refused" not in body
+        assert "sqlalchemy" not in body
+        assert "postgres" not in body
+        assert "traceback" not in body
+
+
+def test_missing_database_returns_503_for_session_lookup_not_logged_out(client, monkeypatch):
+    monkeypatch.setitem(app.extensions, "database", None)
+    client.set_cookie("sentinelx_session", "existing-session-token", path="/api")
+    response = client.get("/api/auth/me")
+    assert response.status_code == 503
+    assert response.get_json() == {"success": False, "error": "Authentication service unavailable"}
+
+
+def test_non_connectivity_database_error_keeps_generic_500_behavior(client, monkeypatch):
+    class FailedSession(AbstractContextManager):
+        def __enter__(self):
+            raise OperationalError("SELECT 1", {}, RuntimeError("unclassified database failure"))
+
+        def __exit__(self, *_args):
+            return False
+
+    class FailedSessionFactory:
+        def begin(self):
+            return FailedSession()
+
+    class FailedDatabase:
+        sessions = FailedSessionFactory()
+
+    monkeypatch.setitem(app.extensions, "database", FailedDatabase())
+    client.set_cookie("sentinelx_session", "a-valid-looking-session-token", path="/api")
+    response = client.get("/api/auth/me")
+    assert response.status_code == 500
+    assert response.get_json() == {"success": False, "result": "", "error": "Internal server error"}
+    assert "unclassified database failure" not in response.get_data(as_text=True)
+
+
+def test_unexpected_exception_keeps_generic_500_behavior(client):
+    response = client.get("/api/test-only-unexpected-error")
+    assert response.status_code == 500
+    assert response.get_json() == {"success": False, "result": "", "error": "Internal server error"}
+    assert "private implementation detail" not in response.get_data(as_text=True)
 
 
 def test_extract_iocs_categories_context_and_counts(client):

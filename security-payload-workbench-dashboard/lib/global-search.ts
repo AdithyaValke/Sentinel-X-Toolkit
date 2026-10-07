@@ -63,7 +63,7 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
   },
   {
     title: 'Hash Tools',
-    description: 'Generate MD5, SHA-256, and SHA-512 hashes.',
+    description: 'Generate MD5, SHA-1, SHA-2, SHA-3, and SHAKE digests.',
     href: '/hash-tools',
     keywords: ['hash converter', 'hash generation', 'digest', 'md5', 'sha256', 'sha-256', 'sha512', 'sha-512'],
     icon: 'hash',

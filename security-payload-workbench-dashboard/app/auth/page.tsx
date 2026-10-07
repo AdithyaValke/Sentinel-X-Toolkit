@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { FormEvent, useState } from 'react'
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { login, registerAccount } from '@/lib/api'
+import { ApiError, login, registerAccount } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 
 export default function AuthPage() {
@@ -31,8 +31,10 @@ export default function AuthPage() {
       else await login({ email: email.trim(), password })
       await refresh()
       router.replace('/dashboard')
-    } catch {
-      setError(mode === 'register' ? 'We could not create your account. Check your details and try again.' : 'Sign in failed. Check your email and password and try again.')
+    } catch (cause) {
+      setError(cause instanceof ApiError && cause.status === 503
+        ? 'Account service is temporarily unavailable. Try again shortly.'
+        : mode === 'register' ? 'We could not create your account. Check your details and try again.' : 'Sign in failed. Check your email and password and try again.')
     } finally { setLoading(false) }
   }
 

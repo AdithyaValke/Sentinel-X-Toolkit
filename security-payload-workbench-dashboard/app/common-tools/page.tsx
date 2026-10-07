@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 const tools = [
   { title: 'Payload Tools', description: 'Encode and decode Base64, URL, and Hex data in one focused workspace.', href: '/payload-tools', icon: TerminalSquare, accent: 'dashboard-icon-amber', items: ['Base64 encode / decode', 'URL encode / decode', 'Hex encode / decode'] },
-  { title: 'Hash Tools', description: 'Generate standard message digests from text with familiar secure algorithms.', href: '/hash-tools', icon: Hash, accent: 'dashboard-icon-cyan', items: ['MD5', 'SHA-256', 'SHA-512'] },
+  { title: 'Hash Tools', description: 'Generate message digests from text with MD5, SHA-2, SHA-3, and SHAKE.', href: '/hash-tools', icon: Hash, accent: 'dashboard-icon-cyan', items: ['MD5 and SHA-1', 'SHA-2 family', 'SHA-3 family', 'SHAKE-128 / SHAKE-256'] },
   { title: 'Identify Hash', description: 'Inspect a hash signature and review likely algorithms with supporting evidence.', href: '/identify-hash', icon: Fingerprint, accent: 'dashboard-icon-violet', items: ['Pattern analysis', 'Likely algorithms', 'Evidence and guidance'] },
   { title: 'JSON Formatter', description: 'Validate, format, and minify JSON locally in your browser.', href: '/json-formatter', icon: Braces, accent: 'dashboard-icon-emerald', items: ['Validate JSON', 'Pretty-print output', 'Minify safely'] },
 ]

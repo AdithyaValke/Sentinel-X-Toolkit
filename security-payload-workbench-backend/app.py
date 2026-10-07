@@ -13,7 +13,10 @@ from datetime import datetime, timedelta, timezone
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import (
+    DBAPIError, DisconnectionError, IntegrityError,
+    TimeoutError as SQLAlchemyTimeoutError,
+)
 
 from flask_limiter import Limiter
 from flask_limiter.errors import RateLimitExceeded
@@ -131,8 +134,39 @@ def _positive_int_setting_from(environment, name: str, default: str) -> int:
 _is_render, _rate_limit_storage, _rate_limit = _rate_limit_configuration(os.environ)
 app.config["API_RATE_LIMIT_PER_MINUTE"] = _rate_limit
 app.config["TRUST_CLOUDFLARE_CLIENT_IP"] = os.environ.get("TRUST_CLOUDFLARE_CLIENT_IP", "").lower() == "true"
-_database_url = database_url_from_environment(required=_is_render)
+# Engine construction is lazy: with no configured URL, stateless tools still start
+# and database-backed routes report service unavailable when requested.
+_database_url = database_url_from_environment(required=False)
 app.extensions["database"] = create_database(_database_url) if _database_url else None
+
+
+class DatabaseUnavailable(Exception):
+    """A database-dependent operation cannot run because storage is unavailable."""
+
+
+def _is_database_unavailable(error):
+    if isinstance(error, (DatabaseUnavailable, DisconnectionError, SQLAlchemyTimeoutError)):
+        return True
+    if not isinstance(error, DBAPIError):
+        return False
+    if isinstance(error, DBAPIError) and error.connection_invalidated:
+        return True
+
+    cause = getattr(error, "orig", error)
+    state = getattr(cause, "sqlstate", None) or getattr(cause, "pgcode", None)
+    if isinstance(state, str) and (state.startswith("08") or state in {"28P01", "3D000", "57P01", "57P02", "57P03"}):
+        return True
+    error_number = getattr(cause, "errno", None)
+    if error_number is None and getattr(cause, "args", None) and isinstance(cause.args[0], int):
+        error_number = cause.args[0]
+    if error_number in {32, 54, 57, 60, 61, 101, 104, 110, 111, 113, 10051, 10053, 10054, 10060, 10061, 10065}:
+        return True
+    message = str(cause).lower()
+    return any(phrase in message for phrase in (
+        "connection refused", "connection reset", "connection timed out",
+        "could not connect", "could not translate host name", "server closed the connection",
+        "terminating connection", "connection is closed", "timeout expired",
+    ))
 
 
 class ClientIpUnavailable(Exception):
@@ -272,7 +306,7 @@ def get_current_user():
         return None
     database = app.extensions.get("database")
     if database is None:
-        return None
+        raise DatabaseUnavailable
     now = datetime.now(timezone.utc)
     with database.sessions.begin() as db_session:
         record = db_session.scalar(select(AuthSession).where(
@@ -398,6 +432,8 @@ def auth_logout():
         return _auth_error("Untrusted request origin", 403)
     token = request.cookies.get(app.config["SESSION_COOKIE_NAME"])
     database = app.extensions.get("database")
+    if token and database is None:
+        return _auth_error("Authentication service unavailable", 503)
     if token and database is not None:
         with database.sessions.begin() as db_session:
             record = db_session.scalar(select(AuthSession).where(AuthSession.session_token_hash == _session_token_hash(token)))
@@ -1288,6 +1324,13 @@ def storage_or_unexpected_error(error):
     if isinstance(error, StorageError):
         app.logger.error("Rate-limit storage is unavailable")
         return _safe_api_error("Request protection is temporarily unavailable"), 503
+    if _is_database_unavailable(error):
+        app.logger.warning("Database service is unavailable (%s)", type(error).__name__)
+        if request.path.startswith("/api/auth/"):
+            return _auth_error("Authentication service unavailable", 503)
+        if request.path.startswith("/api/investigations"):
+            return _investigation_error("Investigation service unavailable", 503)
+        return _safe_api_error("Database service unavailable"), 503
     app.logger.error("Unhandled request error (%s)", type(error).__name__)
     return _safe_api_error("Internal server error"), 500
 

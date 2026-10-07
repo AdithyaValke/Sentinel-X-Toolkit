@@ -10,7 +10,7 @@ export interface AuthUser {
   email: string
 }
 
-type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unavailable'
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStatus(nextUser ? 'authenticated' : 'unauthenticated')
     } catch {
       setUser(null)
-      setStatus('unauthenticated')
+      setStatus('unavailable')
     }
   }
 
