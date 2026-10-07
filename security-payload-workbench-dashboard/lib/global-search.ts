@@ -24,6 +24,13 @@ export const GLOBAL_SEARCH_INDEX: SearchEntry[] = [
     icon: 'common',
   },
   {
+    title: 'JSON Formatter',
+    description: 'Validate, format, and minify JSON locally in your browser.',
+    href: '/json-formatter',
+    keywords: ['json', 'json validator', 'pretty print', 'format json', 'minify json', 'formatter'],
+    icon: 'common',
+  },
+  {
     title: PAYLOAD_GENERATOR_CATALOG_ENTRY.title,
     description: PAYLOAD_GENERATOR_CATALOG_ENTRY.description,
     href: PAYLOAD_GENERATOR_CATALOG_ENTRY.href,
