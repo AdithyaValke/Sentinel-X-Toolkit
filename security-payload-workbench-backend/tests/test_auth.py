@@ -187,6 +187,21 @@ def test_auth_route_rate_limits(auth_client):
     assert [response.status_code for response in attempts] == [401, 401, 401, 401, 401, 429]
 
 
+def test_auth_me_is_limited_to_60_requests_per_minute(auth_client):
+    client, _ = auth_client
+    assert register(client).status_code == 201
+
+    responses = [client.get("/api/auth/me") for _ in range(61)]
+
+    assert [response.status_code for response in responses[:60]] == [200] * 60
+    assert responses[60].status_code == 429
+    assert responses[60].get_json() == {
+        "success": False,
+        "result": "",
+        "error": "Rate limit exceeded. Try again later.",
+    }
+
+
 def test_production_cookie_is_secure_and_cross_site(auth_client):
     client, _ = auth_client
     app.config["SESSION_COOKIE_SECURE"] = True

@@ -316,6 +316,12 @@ def test_wildcard_and_non_origin_cors_values_are_rejected(origin):
     assert not _is_trusted_origin(origin)
 
 
+def test_production_cors_origins_require_https_and_localhost_http_remains_allowed():
+    assert _is_trusted_origin("https://sentinelx.example", require_https=True)
+    assert not _is_trusted_origin("http://sentinelx.example", require_https=True)
+    assert _is_trusted_origin("http://localhost:3000")
+
+
 @pytest.mark.parametrize(("operation", "source", "expected"), [
     ("base64_encode", "hello", "aGVsbG8="),
     ("base64_decode", "aGVsbG8=", "hello"),

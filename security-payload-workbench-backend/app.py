@@ -219,7 +219,7 @@ def public_api_rate_limit():
     )
 
 
-def _is_trusted_origin(origin: str) -> bool:
+def _is_trusted_origin(origin: str, *, require_https: bool = False) -> bool:
     if origin == '*':
         return False
     try:
@@ -227,6 +227,7 @@ def _is_trusted_origin(origin: str) -> bool:
         parsed.port  # Accessing port validates its syntax and range.
         return (
             parsed.scheme in {'http', 'https'}
+            and (not require_https or parsed.scheme == 'https')
             and bool(parsed.hostname)
             and '*' not in parsed.netloc
             and parsed.path in {'', '/'}
@@ -242,14 +243,15 @@ def _is_trusted_origin(origin: str) -> bool:
 # Configure CORS based on environment variable FRONTEND_ORIGIN.
 # In development, allow localhost:3000; in production, require explicit origins.
 frontend_origin = os.getenv('FRONTEND_ORIGIN')
-if os.getenv('RENDER') and not frontend_origin:
+is_production = bool(os.getenv('RENDER'))
+if is_production and not frontend_origin:
     raise RuntimeError("FRONTEND_ORIGIN must be configured in production")
 if frontend_origin:
     origins = [o.strip() for o in frontend_origin.split(',') if o.strip()]
 else:
     # Default development origin
     origins = ['http://localhost:3000']
-if not origins or any(not _is_trusted_origin(origin) for origin in origins):
+if not origins or any(not _is_trusted_origin(origin, require_https=is_production) for origin in origins):
     raise RuntimeError("FRONTEND_ORIGIN must contain explicit HTTP(S) origins without paths or wildcards")
 # Credentialed cookies are only emitted for the explicit origin list above.
 app.config["AUTH_ORIGINS"] = tuple(origins)
@@ -417,6 +419,7 @@ def auth_login():
 
 
 @app.route("/api/auth/me", methods=["GET"])
+@limiter.limit("60 per minute", key_func=verified_client_ip, methods=["GET"])
 def auth_me():
     user = get_current_user()
     if user is None:
