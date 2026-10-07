@@ -35,7 +35,7 @@ function formatInvestigationDate(value: string) {
   return Number.isNaN(date.getTime()) ? 'Not recorded' : investigationDateFormat.format(date)
 }
 
-export function IocExtractor() {
+export function IocExtractor({ embeddedInAnalysisLab = false }: { embeddedInAnalysisLab?: boolean }) {
   const { status: authStatus, refresh: refreshSession } = useAuth()
   const [input, setInput] = useState('')
   const [selected, setSelected] = useState<Set<IndicatorCategory>>(() => new Set(categoryOptions.map(({ id }) => id)))
@@ -192,10 +192,10 @@ export function IocExtractor() {
 
   return (
     <main className="min-h-[calc(100dvh-76px)] bg-[#080b12] text-slate-100 selection:bg-cyan-400/30">
-      <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+      <div className={embeddedInAnalysisLab ? 'w-full pt-4 pb-5 lg:pb-7' : 'mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7'}>
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300"><ShieldAlert className="size-5" /></span><div><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300">Analysis Lab / Tool</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">IoC Extractor</h2></div></div>
+            <div className="flex items-center gap-3"><div><p className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300"><ShieldAlert className="size-4" /> FIND INDICATORS</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">IoC Extractor</h2></div></div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Extract and organize potential indicators of compromise from logs, alerts, and unstructured text.</p>
           </div>
           <span className="rounded-full border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300">Flask API</span>

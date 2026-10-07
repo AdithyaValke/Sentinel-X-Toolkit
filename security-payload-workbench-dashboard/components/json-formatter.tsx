@@ -69,7 +69,7 @@ export function JsonFormatter() {
       <div className="workbench-shell payload-tools-shell json-formatter-shell">
         <header className="workbench-header json-formatter-header">
           <div>
-            <div className="eyebrow"><ShieldCheck /> Security tooling / data transform</div>
+            <div className="eyebrow"><ShieldCheck /> SECURITY TOOLING</div>
             <h1>JSON <span>Formatter</span></h1>
             <p>Validate, format, and minify JSON locally in your browser. Nothing is sent to the backend.</p>
           </div>

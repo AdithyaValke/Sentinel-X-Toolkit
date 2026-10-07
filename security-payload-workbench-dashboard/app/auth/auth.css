@@ -41,3 +41,6 @@ html.light .auth-tab { color: #64748b; }
 html.light .auth-tab-active { @apply bg-cyan-100 text-cyan-800; }
 html.light .auth-form input { @apply border-slate-200 bg-white text-slate-900; }
 html.light .auth-footnote { @apply border-slate-200 text-slate-500; }
+html.light .auth-kicker, html.light .auth-brand small { @apply text-cyan-800; }
+html.light .auth-error { @apply border-rose-200 bg-rose-50 text-rose-800; }
+html.light .profile-signin { @apply border-cyan-200 text-cyan-800 hover:bg-cyan-50; }

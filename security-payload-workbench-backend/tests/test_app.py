@@ -220,21 +220,40 @@ def test_operations(client, operation, source, expected):
 
 
 @pytest.mark.parametrize(("algorithm", "expected"), [
-    ("MD5", hashlib.md5(b"hello").hexdigest()),
-    ("SHA-256", "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"),
-    ("SHA-512", hashlib.sha512(b"hello").hexdigest()),
+    ("MD5", "900150983cd24fb0d6963f7d28e17f72"),
+    ("SHA-1", "a9993e364706816aba3e25717850c26c9cd0d89d"),
+    ("SHA-224", "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7"),
+    ("SHA-256", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+    ("SHA-384", "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"),
+    ("SHA-512", "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"),
+    ("SHA-512/224", "4634270f707b6a54daae7530460842e20e37ed265ceee9a43e8924aa"),
+    ("SHA-512/256", "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23"),
+    ("SHA3-224", "e642824c3f8cf24ad09234ee7d3c766fc9a3a5168d0c94ad73b46fdf"),
+    ("SHA3-256", "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"),
+    ("SHA3-384", "ec01498288516fc926459f58e2c6ad8df9b473cb0fc08c2596da7cf0e49be4b298d88cea927ac7f539f1edf228376d25"),
+    ("SHA3-512", "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0"),
+    ("SHAKE-128", "5881092dd818bf5cf8a3ddb793fbcba74097d5c526a6d35f97b83351940f2cc8"),
+    ("SHAKE-256", "483366601360a8771c6863080cc4114d8db44530f8f1e1ee4f94ea37e78b5739"),
 ])
 def test_hash_vectors(client, algorithm, expected):
-    response = post_process(client, "hash", "hello", algorithm)
+    response = post_process(client, "hash", "abc", algorithm)
     assert response.status_code == 200
     assert response.get_json() == {"success": True, "result": expected, "error": None}
 
 
 def test_hash_normalization_and_invalid_algorithm(client):
     assert post_process(client, "hash", "hello", " sha-256 ").get_json()["success"]
-    response = post_process(client, "hash", "hello", "sha1")
+    assert post_process(client, "hash", "hello", "SHA-512/224").get_json()["success"]
+    response = post_process(client, "hash", "hello", "sha3-999")
     assert response.status_code == 400
     assert response.get_json()["success"] is False
+
+
+def test_hash_shake_uses_fixed_32_byte_output(client):
+    response = post_process(client, "hash", "hello", "SHAKE-128")
+    assert response.status_code == 200
+    assert response.get_json()["result"] == hashlib.shake_128(b"hello").hexdigest(32)
+    assert len(response.get_json()["result"]) == 64
 
 
 @pytest.mark.parametrize("operation,input_text", [("base64_decode", "%%%"), ("hex_decode", "xyz"), ("hex_decode", "ff")])
@@ -353,6 +372,49 @@ def test_identify_hash_128_char_hex(client):
     assert data["result"] == "Matches: SHA-512 (Hashcat: 1700)"
     assert data["input_length"] == 128
     assert any(c["algorithm"] == "SHA-512" for c in data["candidates"])
+
+
+@pytest.mark.parametrize(("hashlib_name", "candidate"), [
+    ("md5", "MD5"),
+    ("sha1", "SHA-1"),
+    ("sha224", "SHA-224"),
+    ("sha256", "SHA-256"),
+    ("sha384", "SHA-384"),
+    ("sha512", "SHA-512"),
+    ("sha512_224", "SHA-512/224"),
+    ("sha512_256", "SHA-512/256"),
+    ("sha3_224", "SHA3-224"),
+    ("sha3_256", "SHA3-256"),
+    ("sha3_384", "SHA3-384"),
+    ("sha3_512", "SHA3-512"),
+])
+def test_identify_hash_fixed_length_algorithm_candidates(client, hashlib_name, candidate):
+    digest = hashlib.new(hashlib_name, b"hello").hexdigest()
+    response = post_process(client, "identify_hash", digest)
+    assert response.status_code == 200
+    data = response.get_json()
+    candidates = [item["algorithm"] for item in data["candidates"]]
+    assert candidate in candidates
+    assert data["is_ambiguous"] is True
+
+
+@pytest.mark.parametrize("length", [30, 31, 33, 39, 41, 55, 57, 95, 97, 127, 129])
+def test_identify_hash_rejects_impossible_hex_digest_lengths(client, length):
+    response = post_process(client, "identify_hash", "a" * length)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["candidates"] == []
+    assert data["is_ambiguous"] is False
+
+
+@pytest.mark.parametrize(("hashlib_name", "output_bytes"), [("shake_128", 32), ("shake_256", 32)])
+def test_identify_hash_does_not_claim_shake_from_generic_hex_digest(client, hashlib_name, output_bytes):
+    digest = hashlib.new(hashlib_name, b"hello").hexdigest(output_bytes)
+    response = post_process(client, "identify_hash", digest)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert all(not item["algorithm"].startswith("SHAKE") for item in data["candidates"])
+    assert data["is_ambiguous"] is True
 
 
 def test_identify_hash_bcrypt_format(client):

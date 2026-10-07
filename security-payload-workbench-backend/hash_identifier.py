@@ -26,6 +26,7 @@ HEX_PATTERNS = {
     56: [
         {"algorithm": "SHA-224", "hashcat_mode": "1300", "description": "56 hex characters, 224-bit SHA-2 family digest."},
         {"algorithm": "SHA-512/224", "hashcat_mode": None, "description": "56 hex characters (truncated SHA-512 variant)."},
+        {"algorithm": "SHA3-224", "hashcat_mode": "17300", "description": "56 hex characters, Keccak/SHA-3 224-bit digest."},
     ],
     64: [
         {"algorithm": "SHA-256", "hashcat_mode": "1400", "description": "64 hex characters, standard 256-bit SHA-2 digest."},

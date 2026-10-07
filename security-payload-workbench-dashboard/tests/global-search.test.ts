@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { GLOBAL_SEARCH_INDEX, searchGlobal } from '../lib/global-search.ts'
-import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY, SECURITY_LAB_TAB_IDS, parseSecurityLabTab } from '../lib/security-lab-catalog.ts'
+import { JWT_DECODER_CATALOG_ENTRY, PAYLOAD_GENERATOR_CATALOG_ENTRY, REGEX_TESTER_CATALOG_ENTRY, SECURITY_HEADERS_CATALOG_ENTRY, SECURITY_LAB_TAB_IDS, parseSecurityLabTab } from '../lib/security-lab-catalog.ts'
 
 test('indexes all main destinations and offers concise empty-query suggestions', () => {
   assert.deepEqual(GLOBAL_SEARCH_INDEX.map(({ href }) => href), [
-    '/dashboard', '/common-tools', '/json-formatter', '/regex-tester', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools', '/hash-tools', '/identify-hash', '/investigations', '/investigations?new=1', '/security-lab', '/security-lab?tab=security-headers',
+    '/dashboard', '/common-tools', '/json-formatter', '/security-lab?tab=regex-tester', '/security-lab?tab=payload-generator', '/security-lab?tab=jwt-decoder', '/payload-tools', '/hash-tools', '/identify-hash', '/investigations', '/investigations?new=1', '/security-lab', '/security-lab?tab=security-headers',
   ])
   assert.deepEqual(searchGlobal('').map(({ href }) => href), [
-    '/dashboard', '/common-tools', '/json-formatter', '/regex-tester',
+    '/dashboard', '/common-tools', '/json-formatter', '/security-lab?tab=regex-tester',
   ])
 })
 
@@ -42,8 +42,19 @@ test('indexes JWT Decoder from its catalog entry and finds it for jwt queries', 
   assert.equal(searchGlobal('jwt')[0]?.href, JWT_DECODER_CATALOG_ENTRY.href)
 })
 
-test('Security Headers Analyzer is the final Analysis Lab tab and search opens its deep link', () => {
-  assert.deepEqual(SECURITY_LAB_TAB_IDS, ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor', 'security-headers'])
+test('Regex Tester is an Analysis Lab tab and global search opens its deep link', () => {
+  assert.deepEqual(SECURITY_LAB_TAB_IDS, ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor', 'security-headers', 'regex-tester'])
+  assert.equal(REGEX_TESTER_CATALOG_ENTRY.tab, 'regex-tester')
+  assert.equal(REGEX_TESTER_CATALOG_ENTRY.href, '/security-lab?tab=regex-tester')
+  const regex = GLOBAL_SEARCH_INDEX.find(({ title }) => title === REGEX_TESTER_CATALOG_ENTRY.title)
+  assert.ok(regex)
+  assert.equal(regex.href, REGEX_TESTER_CATALOG_ENTRY.href)
+  assert.equal(searchGlobal('Regex Tester')[0]?.href, REGEX_TESTER_CATALOG_ENTRY.href)
+  assert.equal(parseSecurityLabTab(new URLSearchParams('tab=regex-tester').get('tab')), 'regex-tester')
+})
+
+test('Security Headers Analyzer remains an Analysis Lab tab and search opens its deep link', () => {
+  assert.deepEqual(SECURITY_LAB_TAB_IDS, ['overview', 'defanger', 'payload-generator', 'jwt-decoder', 'ioc-extractor', 'security-headers', 'regex-tester'])
   assert.equal(SECURITY_HEADERS_CATALOG_ENTRY.tab, 'security-headers')
   assert.equal(SECURITY_HEADERS_CATALOG_ENTRY.href, '/security-lab?tab=security-headers')
   const result = GLOBAL_SEARCH_INDEX.find(({ title }) => title === SECURITY_HEADERS_CATALOG_ENTRY.title)

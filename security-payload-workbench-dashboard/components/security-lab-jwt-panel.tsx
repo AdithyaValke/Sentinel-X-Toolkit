@@ -142,7 +142,7 @@ export function SecurityLabJwtPanel() {
   const findingsBySeverity = (['critical', 'warning', 'info'] as const).map((severity) => ({ severity, items: analysis?.findings.filter((item) => item.severity === severity) ?? [] }))
   const inputLength = new TextEncoder().encode(token).byteLength
 
-  return <section className="mt-8" aria-labelledby="jwt-panel-heading">
+  return <section className="mt-4" aria-labelledby="jwt-panel-heading">
     <header className="mb-5">
       <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-400"><KeyRound className="size-3.5" /> Token Inspection</div>
       <h2 id="jwt-panel-heading" className="mt-2 text-2xl font-bold text-white sm:text-3xl">JWT Decoder and Analyzer</h2>

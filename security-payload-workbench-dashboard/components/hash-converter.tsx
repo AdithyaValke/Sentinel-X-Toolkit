@@ -2,15 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Check, Clipboard, Eraser, Hash, ShieldCheck } from 'lucide-react'
-import { callBackend, type HashAlgorithm } from '@/lib/api'
+import { callBackend } from '@/lib/api'
+import { HASH_ALGORITHM_OPTIONS, type HashAlgorithm } from '@/lib/hash-algorithms'
 import { LatestRequest } from '@/lib/latest-request'
 import { recordActivity } from '@/lib/activity'
-
-const HASH_OPTIONS: Array<{ value: HashAlgorithm; label: string; detail: string }> = [
-  { value: 'MD5', label: 'MD5', detail: 'Legacy compatibility' },
-  { value: 'SHA-256', label: 'SHA-256', detail: 'Recommended default' },
-  { value: 'SHA-512', label: 'SHA-512', detail: 'Extended integrity' },
-]
 
 export function HashConverter() {
   const [input, setInput] = useState('')
@@ -115,8 +110,8 @@ export function HashConverter() {
 
           <div className="operations hash-operations" aria-label="Hash algorithm controls">
             <div className="section-label">Hash algorithm</div>
-            <div className="hash-option-list">
-              {HASH_OPTIONS.map((option) => (
+            <div className="hash-option-list" role="region" aria-label="Hash algorithms" tabIndex={0}>
+              {HASH_ALGORITHM_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"

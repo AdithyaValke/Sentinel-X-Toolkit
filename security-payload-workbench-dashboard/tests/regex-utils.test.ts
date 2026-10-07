@@ -10,6 +10,10 @@ test('analyzes matches, positions, flags, and capture groups', () => {
   assert.deepEqual(result.matches[0].groups, ['ERROR', 'disk'])
 })
 test('returns a friendly invalid-regex error', () => assert.match(analyzeRegex('[', 'text', 'g').error ?? '', /Invalid regular expression|unterminated/i))
+test('empty pattern returns no matches for non-empty input', () => assert.deepEqual(analyzeRegex('', 'some input', 'g').matches, []))
+test('whitespace-only pattern returns no matches for non-empty input', () => assert.deepEqual(analyzeRegex(' \t\n ', 'some input', 'g').matches, []))
+test('empty pattern returns no matches for empty input', () => assert.deepEqual(analyzeRegex('', '', 'g').matches, []))
+test('invalid regex still reports the existing error behavior', () => assert.match(analyzeRegex('[', 'text', 'g').error ?? '', /Invalid regular expression|unterminated/i))
 test('supports presets and no-match states', () => {
   const preset = REGEX_PRESETS.Email
   assert.equal(analyzeRegex(preset.pattern, 'analyst@example.com', preset.flags).matches[0].value, 'analyst@example.com')

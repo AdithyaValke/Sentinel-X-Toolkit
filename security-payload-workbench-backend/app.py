@@ -1023,21 +1023,40 @@ def decode_hex(hex_str: str):
         return False, "", str(e)
 
 
+HASH_ALGORITHMS = {
+    "md5": "md5",
+    "sha1": "sha1",
+    "sha224": "sha224",
+    "sha256": "sha256",
+    "sha384": "sha384",
+    "sha512": "sha512",
+    "sha512224": "sha512_224",
+    "sha512256": "sha512_256",
+    "sha3224": "sha3_224",
+    "sha3256": "sha3_256",
+    "sha3384": "sha3_384",
+    "sha3512": "sha3_512",
+    "shake128": "shake_128",
+    "shake256": "shake_256",
+}
+SHAKE_OUTPUT_BYTES = 32
+
+
 def hash_text(text: str, algorithm: str):
-    """Hash the input text using the specified algorithm.
-    Supported algorithms: md5, sha256, sha512 (case‑insensitive, hyphens/spaces ignored).
-    Returns a tuple (success, result, error)."""
-    algo = re.sub(r"[\s-]", "", algorithm).lower()
+    """Hash UTF-8 text using a supported hashlib algorithm.
+
+    Algorithm names are case-insensitive; whitespace, hyphens, and slashes
+    are ignored. SHAKE algorithms use a fixed 32-byte output.
+    Returns a tuple (success, result, error).
+    """
+    algo = re.sub(r"[\s/-]", "", algorithm).lower()
+    hashlib_name = HASH_ALGORITHMS.get(algo)
+    if hashlib_name is None:
+        return False, "", f"Unsupported hash algorithm: {algorithm}"
     try:
-        if algo == "md5":
-            digest = hashlib.md5(text.encode("utf-8")).hexdigest()
-        elif algo == "sha256":
-            digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        elif algo == "sha512":
-            digest = hashlib.sha512(text.encode("utf-8")).hexdigest()
-        else:
-            return False, "", f"Unsupported hash algorithm: {algorithm}"
-        return True, digest, None
+        digest = hashlib.new(hashlib_name, text.encode("utf-8"))
+        result = digest.hexdigest(SHAKE_OUTPUT_BYTES) if algo.startswith("shake") else digest.hexdigest()
+        return True, result, None
     except (TypeError, ValueError):
         return False, "", "Unable to hash input with the requested algorithm"
 

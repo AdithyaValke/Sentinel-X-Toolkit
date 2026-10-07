@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { callBackend, callChain, checkBackendHealth, createInvestigation, extractIocs } from '../lib/api.ts'
+import { HASH_ALGORITHM_OPTIONS } from '../lib/hash-algorithms.ts'
 import { addChainStep, CHAIN_MAX_STEPS, CHAIN_OPERATION_DESCRIPTIONS, CHAIN_OPERATION_LABELS, CHAIN_REQUEST_MAX_BYTES, isChainResponse, moveChainStep, PAYLOAD_OPERATION_MAP, removeChainStep, serializedChainRequestBytes } from '../lib/payload-operations.ts'
 
 test('chain helpers add, remove, reorder, and enforce the step limit', () => {
@@ -98,6 +99,32 @@ test('sends each payload operation to the existing Flask API and returns its res
       assert.equal(requestBody?.operation, apiOperation, operation)
       assert.equal(requestBody?.input_text, 'sample input', operation)
       assert.equal(response.result, 'encoded result', operation)
+    }
+  } finally {
+    globalThis.fetch = originalFetch
+    Reflect.deleteProperty(globalThis, 'window')
+  }
+})
+
+test('sends each Hash Converter selection unchanged as the backend hash identifier', async () => {
+  const originalFetch = globalThis.fetch
+  installBrowserTimerShim()
+  try {
+    for (const { value } of HASH_ALGORITHM_OPTIONS) {
+      globalThis.fetch = async (_input, init) => {
+        assert.deepEqual(JSON.parse(String(init?.body)), {
+          input_text: 'abc',
+          operation: 'hash',
+          hash_algorithm: value,
+        })
+        return new Response(JSON.stringify({ success: true, result: 'verified digest', error: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      const response = await callBackend('hash', 'abc', value)
+      assert.equal(response.success, true, value)
+      assert.equal(response.result, 'verified digest', value)
     }
   } finally {
     globalThis.fetch = originalFetch

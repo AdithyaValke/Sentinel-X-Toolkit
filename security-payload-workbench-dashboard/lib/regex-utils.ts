@@ -13,6 +13,7 @@ export type RegexMatch = { index: number; value: string; line: number; column: n
 
 export function analyzeRegex(pattern: string, input: string, flags: string): { matches: RegexMatch[]; error?: string } {
   if (input.length > MAX_REGEX_INPUT_LENGTH) return { matches: [], error: `Input is limited to ${MAX_REGEX_INPUT_LENGTH.toLocaleString()} characters.` }
+  if (pattern.trim() === '') return { matches: [] }
   let regex: RegExp
   try { regex = new RegExp(pattern, flags) } catch (error) { return { matches: [], error: error instanceof Error ? error.message : 'Invalid regular expression.' } }
   const matches: RegexMatch[] = []

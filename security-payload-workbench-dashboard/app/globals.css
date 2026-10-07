@@ -446,7 +446,7 @@
   @media (min-width: 1280px) {
     .payload-tools-shell .payload-workspace .buffer-card { min-height: clamp(360px, calc(100svh - 500px), 460px); }
     .payload-tools-shell .payload-workspace .buffer-textarea { min-height: clamp(180px, calc(100svh - 620px), 340px); }
-    .payload-tools-shell .payload-workspace .operation-button { @apply min-h-[50px] gap-2.5 px-2.5; }
+    .payload-tools-shell .payload-workspace .operation-button { @apply min-h-[50px] gap-2.5 justify-start px-2.5; }
   }
   @media (min-width: 1024px) {
     .payload-tools-shell { padding-top: 0.75rem; padding-bottom: 0.75rem; }
@@ -539,7 +539,12 @@ html.light .dashboard-page { background: #f8fafc; color: #0f172a; } html.light .
   .hash-workbench-shell .workbench-header p { @apply max-w-xl; }
   .hash-workspace { @apply gap-4 xl:grid-cols-[minmax(0,1fr)_260px_minmax(0,1fr)] xl:gap-5; }
   .hash-operations { @apply justify-start px-3.5 py-5; }
-  .hash-option-list { @apply flex flex-col gap-2; }
+  .hash-option-list { @apply flex max-h-[24rem] flex-col gap-2 overflow-y-auto overscroll-contain pr-1; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgb(34 211 238 / .42) transparent; }
+  .hash-option-list::-webkit-scrollbar { width: 7px; }
+  .hash-option-list::-webkit-scrollbar-track { background: transparent; }
+  .hash-option-list::-webkit-scrollbar-thumb { border-radius: 999px; background: rgb(34 211 238 / .34); }
+  html.light .hash-option-list { scrollbar-color: rgb(8 145 178 / .5) transparent; }
+  html.light .hash-option-list::-webkit-scrollbar-thumb { background: rgb(8 145 178 / .4); }
   .hash-option { @apply flex min-h-16 w-full items-center gap-3 rounded-xl border px-3 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background; }
   .dark .hash-option { @apply border-slate-800 bg-slate-900/80 text-slate-400 hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:text-cyan-100; }
   .light .hash-option, html.light .hash-option { @apply border-slate-200 bg-white text-slate-600 shadow-sm hover:border-cyan-600/50 hover:bg-cyan-50 hover:text-cyan-700; }
@@ -681,4 +686,143 @@ html.light .investigation-management-dialog input,html.light .investigation-mana
 html.light .json-editor-panel,html.light .json-formatter-controls{border-color:#cbd5e1;background:#fff}html.light .json-panel-header,html.light .json-panel-footer{border-color:#e2e8f0}html.light .json-code-surface{background:#f1f5f9}html.light .json-code-input,html.light .json-code-output{color:#0f172a}html.light .json-formatter-controls select,html.light .json-tool-action{border-color:#cbd5e1;background:#f8fafc;color:#334155}
 @media(max-width:760px){.json-formatter-workspace{grid-template-columns:1fr}.json-code-surface{height:22rem}.json-primary-action{margin-left:0}.json-formatter-controls label{width:100%}}
 @media(max-width:420px){.json-panel-stats{font-size:.52rem}.json-panel-header{align-items:flex-start;flex-direction:column}.json-panel-stats{justify-content:flex-start}.json-formatter-controls>*{flex:1}.json-formatter-controls label{flex:none}}
+
+/* Light theme corrections for remaining CSS-authored surfaces. */
+html.light .app-page-title { color: #0f172a; }
+html.light .app-mobile-menu { color: #475569; }
+html.light .app-mobile-menu:hover { background: #f1f5f9; }
+
+html.light .dashboard-protected > span { color: #047857; }
+html.light .dashboard-protected p { color: #065f46; }
+html.light .dashboard-protected small { color: #047857; }
+html.light .dashboard-eyebrow,
+html.light .dashboard-section-kicker { color: #0e7490; }
+html.light .dashboard-eyebrow-dot { background: #0891b2; }
+html.light .dashboard-section-link:hover,
+html.light .dashboard-tool-card:hover .dashboard-tool-cta { color: #0e7490; }
+
+html.light .investigation-header,
+html.light .investigation-detail-header { border-color: #dbe4ee; }
+html.light .investigation-header h1,
+html.light .investigation-detail-header h1,
+html.light .investigation-card h2,
+html.light .investigation-form h2,
+html.light .investigation-panel h2,
+html.light .investigation-empty h1,
+html.light .investigation-empty h2,
+html.light .investigation-gate h1,
+html.light .investigation-finding-heading h3,
+html.light .investigation-evidence-card h3,
+html.light .investigation-ioc-empty h3 { color: #0f172a; }
+html.light .investigation-header p:not(.dashboard-eyebrow),
+html.light .investigation-detail-header p:not(.dashboard-eyebrow),
+html.light .investigation-card p,
+html.light .investigation-form p,
+html.light .investigation-panel > p:not(.dashboard-section-kicker),
+html.light .investigation-empty p,
+html.light .investigation-gate p,
+html.light .investigation-ioc-source,
+html.light .investigation-ioc-empty p,
+html.light .investigation-finding-description,
+html.light .investigation-evidence-content,
+html.light .investigation-timeline-event-content p { color: #475569; }
+html.light .investigation-card { border-color: #dbe4ee; background: #fff; }
+html.light .investigation-card:hover { border-color: #67cddd; background: #f8fdfe; }
+html.light .investigation-card-meta,
+html.light .investigation-placeholder-list span,
+html.light .investigation-metadata dt,
+html.light .investigation-header-meta dt,
+html.light .investigation-ioc-meta dt,
+html.light .investigation-finding-meta dt,
+html.light .investigation-finding-count,
+html.light .investigation-evidence-date,
+html.light .investigation-evidence-source,
+html.light .investigation-timeline-order,
+html.light .investigation-timeline-event-heading time { color: #64748b; }
+html.light .investigation-placeholder-list div,
+html.light .investigation-metadata dd,
+html.light .investigation-ioc-heading code,
+html.light .investigation-ioc-meta dd,
+html.light .investigation-finding-meta dd { color: #334155; }
+html.light .investigation-primary-button { border-color: #0e7490; background: #0e7490; color: #fff; }
+html.light .investigation-primary-button:hover { background: #155e75; }
+html.light .investigation-secondary-button { border-color: #cbd5e1; background: #fff; color: #334155; }
+html.light .investigation-secondary-button:hover { background: #f1f5f9; }
+html.light .investigation-status-open { background: #dbeafe; color: #1d4ed8; }
+html.light .investigation-status-investigating { background: #fef3c7; color: #92400e; }
+html.light .investigation-status-resolved { background: #d1fae5; color: #047857; }
+html.light .investigation-status-closed { background: #e2e8f0; color: #475569; }
+html.light .investigation-form,
+html.light .investigation-panel,
+html.light .investigation-management-dialog { border-color: #dbe4ee; background: #fff; }
+html.light .investigation-form label,
+html.light .investigation-management-dialog label { color: #334155; }
+html.light .investigation-form input,
+html.light .investigation-form textarea,
+html.light .investigation-form select,
+html.light .investigation-ioc-form input,
+html.light .investigation-ioc-form select,
+html.light .investigation-finding-fields input,
+html.light .investigation-finding-fields select,
+html.light .investigation-finding-fields textarea,
+html.light .investigation-evidence-fields input,
+html.light .investigation-evidence-fields textarea,
+html.light .investigation-management-dialog input,
+html.light .investigation-management-dialog textarea { border-color: #cbd5e1; background: #f8fafc; color: #0f172a; }
+html.light .investigation-ioc-form,
+html.light .investigation-finding-form,
+html.light .investigation-evidence-form { border-color: #bae6fd; background: #f0f9ff; }
+html.light .investigation-ioc-card,
+html.light .investigation-finding-card,
+html.light .investigation-evidence-card { background: #fff; }
+html.light .investigation-ioc-ip { background: #cffafe; color: #0e7490; }
+html.light .investigation-ioc-domain { background: #ede9fe; color: #6d28d9; }
+html.light .investigation-ioc-hash { background: #fef3c7; color: #92400e; }
+html.light .investigation-ioc-email { background: #d1fae5; color: #047857; }
+html.light .investigation-ioc-empty { border-color: #cbd5e1; }
+html.light .investigation-ioc-empty h3 { color: #0f172a; }
+html.light .investigation-ioc-skeleton span { background: #e2e8f0; }
+html.light .investigation-form-error { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+html.light .investigation-finding-info { background: #f1f5f9; color: #475569; }
+html.light .investigation-finding-low { background: #e0f2fe; color: #0369a1; }
+html.light .investigation-finding-medium { background: #fef3c7; color: #92400e; }
+html.light .investigation-finding-high { background: #ffedd5; color: #c2410c; }
+html.light .investigation-finding-critical { background: #fee2e2; color: #b91c1c; }
+html.light .investigation-evidence-type { background: #cffafe; color: #0e7490; }
+html.light .investigation-finding-meta,
+html.light .investigation-timeline-list { border-color: #e2e8f0; }
+html.light .investigation-timeline-event-heading span { color: #0e7490; }
+html.light .investigation-timeline-marker { border-color: #94a3b8; background: #f8fafc; }
+html.light .investigation-timeline-event-newest .investigation-timeline-marker { border-color: #0891b2; background: #22d3ee; }
+html.light .investigation-scroll-region:focus-visible { --tw-ring-offset-color: #f8fafc; }
+html.light .investigation-error { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+html.light .investigation-error button { color: #0369a1; }
+html.light .investigation-empty,
+html.light .investigation-gate { border-color: #cbd5e1; background: #fff; }
+html.light .investigation-empty-icon,
+html.light .investigation-gate-icon { background: #e0f2fe; color: #0369a1; }
+html.light .investigation-back { color: #0369a1; }
+html.light .investigation-management-menu { border-color: #dbe4ee; background: #fff; }
+html.light .investigation-management-menu button { color: #334155; }
+html.light .investigation-management-menu button:hover { background: #f1f5f9; }
+html.light .investigation-management-menu .investigation-management-danger { color: #b91c1c; }
+html.light .investigation-management-divider { background: #e2e8f0; }
+html.light .investigation-management-dialog h2 { color: #0f172a; }
+html.light .investigation-management-dialog p { color: #475569; }
+html.light .investigation-management-dialog .investigation-management-delete-copy { border-color: #ef4444; color: #b91c1c; }
+html.light .investigation-management-dialog .investigation-management-error { color: #b91c1c; }
+html.light .investigation-management-danger-button { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+html.light .investigation-management-danger-button:hover:not(:disabled) { background: #fee2e2; }
+
+html.light .json-panel-title h2 { color: #334155; }
+html.light .json-line-numbers { border-color: #cbd5e1; color: #64748b; }
+html.light .json-code-input::placeholder { color: #64748b; }
+html.light .json-code-output { color: #0e7490; }
+html.light .json-status { color: #475569; }
+html.light .json-status.valid { color: #047857; }
+html.light .json-status.invalid { color: #be123c; }
+html.light .json-error-message { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+html.light .json-tool-action:hover:not(:disabled) { border-color: #0891b2; background: #ecfeff; color: #0e7490; }
+html.light .json-primary-action { border-color: #0891b2; background: #ecfeff; color: #0e7490; }
+html.light .json-primary-action:hover { background: #cffafe; }
 

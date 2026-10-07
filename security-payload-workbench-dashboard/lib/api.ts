@@ -1,6 +1,7 @@
 import { isChainResponse } from './payload-operations.ts'
+import type { HashAlgorithm } from './hash-algorithms.ts'
 
-export type HashAlgorithm = 'MD5' | 'SHA-256' | 'SHA-512';
+export type { HashAlgorithm } from './hash-algorithms.ts'
 
 export interface HashCandidate {
   algorithm: string;
